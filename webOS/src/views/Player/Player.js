@@ -934,12 +934,12 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 			if (mediaSegments && settings.skipIntro) {
 				const {introStart, introEnd, creditsStart} = mediaSegments;
 
-				if (introStart && introEnd) {
+				if (introStart !== null && introEnd !== null) {
 					const inIntro = ticks >= introStart && ticks < introEnd;
 					setShowSkipIntro(inIntro);
 				}
 
-				if (creditsStart && nextEpisode) {
+				if (creditsStart !== null && nextEpisode) {
 					const inCredits = ticks >= creditsStart;
 					if (inCredits && !showSkipCredits) {
 						// Auto-skip credits if setting enabled

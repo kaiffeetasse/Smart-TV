@@ -529,15 +529,39 @@ export const getTrickplayInfo = async (itemId) => {
 };
 
 export const getMediaSegments = async (itemId) => {
-	try {
-		const item = await jellyfinApi.api.getItem(itemId);
-		const segments = {
-			introStart: null,
-			introEnd: null,
-			creditsStart: null
-		};
+	const segments = {
+		introStart: null,
+		introEnd: null,
+		creditsStart: null
+	};
 
-		if (item.Chapters) {
+	// Try the Media Segments API first (uses authenticated request)
+	try {
+		const data = await jellyfinApi.api.getMediaSegments(itemId);
+		if (data?.Items && data.Items.length > 0) {
+			for (const seg of data.Items) {
+				const type = seg.Type?.toLowerCase();
+				if (type === 'intro') {
+					segments.introStart = seg.StartTicks;
+					segments.introEnd = seg.EndTicks;
+				} else if (type === 'outro' || type === 'credits') {
+					segments.creditsStart = seg.StartTicks;
+				}
+			}
+			if (segments.introStart !== null || segments.creditsStart !== null) {
+				console.log('[Playback] Media segments found:', segments);
+				return segments;
+			}
+		}
+	} catch (e) {
+		console.warn('[Playback] Media Segments API not available, falling back to chapters:', e.message);
+	}
+
+	// Fallback: check chapter markers
+	try {
+		const item = await jellyfinApi.api.getItemWithChapters(itemId);
+
+		if (item?.Chapters) {
 			const introIndex = item.Chapters.findIndex(c =>
 				c.MarkerType === 'IntroStart' ||
 				c.Name?.toLowerCase().includes('intro')
@@ -558,12 +582,16 @@ export const getMediaSegments = async (itemId) => {
 			if (creditsChapter) {
 				segments.creditsStart = creditsChapter.StartPositionTicks;
 			}
-		}
 
-		return segments;
+			if (segments.introStart !== null || segments.creditsStart !== null) {
+				console.log('[Playback] Segments found via chapters:', segments);
+			}
+		}
 	} catch (e) {
-		return {introStart: null, introEnd: null, creditsStart: null};
+		console.warn('[Playback] Failed to fetch chapters for segments:', e.message);
 	}
+
+	return segments;
 };
 
 export const getNextEpisode = async (item) => {

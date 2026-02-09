@@ -134,6 +134,10 @@ export const api = {
 
 	getItem: (itemId) => request(`/Users/${currentUser}/Items/${itemId}`),
 
+	getItemWithChapters: (itemId) => request(`/Users/${currentUser}/Items/${itemId}?Fields=Chapters`),
+
+	getMediaSegments: (itemId) => request(`/MediaSegments/${itemId}`),
+
 	getUserConfiguration: () => request(`/Users/${currentUser}`),
 
 	getLatest: (libraryId, limit = 20) =>
