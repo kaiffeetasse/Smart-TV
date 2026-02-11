@@ -96,6 +96,17 @@ try {
 	]);
 	deleteFiles(path.join('dist', 'node_modules', '@enact', 'sandstone', 'fonts', 'MuseoSans'), fontFiles);
 
+	// Sync service version with app version
+	console.log('\n Syncing service version...');
+	const appPkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+	const servicePkgPath = path.join('services', 'package.json');
+	const servicePkg = JSON.parse(fs.readFileSync(servicePkgPath, 'utf8'));
+	if (servicePkg.version !== appPkg.version) {
+		servicePkg.version = appPkg.version;
+		fs.writeFileSync(servicePkgPath, JSON.stringify(servicePkg, null, '\t') + '\n', 'utf8');
+		console.log(`  Updated service version to ${appPkg.version}`);
+	}
+
 	// Package into IPK
 	console.log('\n Creating IPK package...');
 	fs.mkdirSync('build', {recursive: true});

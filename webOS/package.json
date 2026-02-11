@@ -68,7 +68,7 @@
 	},
 	"devDependencies": {
 		"@enact/cli": "^6.1.3",
-		"@webosose/ares-cli": "^2.4.0",
+		"@webos-tools/cli": "^3.2.1",
 		"baseline-browser-mapping": "^2.9.19",
 		"eslint-config-enact-proxy": "^1.0.7"
 	},

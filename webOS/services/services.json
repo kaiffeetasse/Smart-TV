@@ -4,7 +4,8 @@
 	"services": [
 		{
 			"name": "org.moonfin.webos.service",
-			"description": "Server discovery and Jellyseerr proxy"
+			"description": "Server discovery and Jellyseerr proxy",
+			"engine": "node"
 		}
 	]
 }
