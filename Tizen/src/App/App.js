@@ -301,7 +301,7 @@ const AppContent = (props) => {
 			// Handle back button (10009 = Tizen BACK, 27 = Escape, 8 = Backspace)
 			if (isBackKey(e)) {
 				e.preventDefault();
-				
+
 				if (showAccountModal) {
 					setShowAccountModal(false);
 					return;

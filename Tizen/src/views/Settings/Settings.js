@@ -164,7 +164,7 @@ const UI_COLOR_OPTIONS = [
 	{value: 'brown', label: 'Brown', rgb: '50, 35, 25'}
 ];
 
-const Settings = ({onBack, onLogout, onAddServer, onAddUser, onLibrariesChanged}) => {
+const Settings = ({onBack, onLibrariesChanged}) => {
 	const {
 		user,
 		api,

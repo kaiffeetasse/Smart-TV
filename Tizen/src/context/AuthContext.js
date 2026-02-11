@@ -59,7 +59,7 @@ export const AuthProvider = ({children}) => {
 
 			// Load multi-server data
 			const {active} = await loadServers();
-			
+
 			// Check auto-login setting
 			const storedSettings = await getFromStorage('settings');
 			const autoLogin = storedSettings?.autoLogin !== false; // default true

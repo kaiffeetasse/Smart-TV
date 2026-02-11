@@ -137,7 +137,7 @@ const IconInfo = () => (
 	</svg>
 );
 
-const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded, onBack, onPlayNext, audioPlaylist}) => {
+const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack, onPlayNext, audioPlaylist}) => {
 	const {settings} = useSettings();
 
 	const [mediaUrl, setMediaUrl] = useState(null);
@@ -1093,7 +1093,7 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, duration, settings.seekStep, seekByOffset, showNextEpisode, showSkipCredits, nextEpisode, cancelNextEpisodeCountdown, bottomButtons.length]);
+	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, duration, settings.seekStep, showNextEpisode, showSkipCredits, nextEpisode, cancelNextEpisodeCountdown, bottomButtons.length]);
 
 	// Calculate progress - use seekPosition when actively seeking for smooth scrubbing
 	const displayTime = isSeeking ? (seekPosition / 10000000) : currentTime;

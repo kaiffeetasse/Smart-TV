@@ -132,10 +132,10 @@ const buildPlaybackUrl = (itemId, mediaSource, playSessionId, playMethod, creden
 
 	if (playMethod === PlayMethod.DirectStream) {
 		if (mediaSource.DirectStreamUrl) {
-			const url = mediaSource.DirectStreamUrl.startsWith('http')
+			const dsUrl = mediaSource.DirectStreamUrl.startsWith('http')
 				? mediaSource.DirectStreamUrl
 				: `${serverUrl}${mediaSource.DirectStreamUrl}`;
-			return url.includes('api_key') ? url : `${url}&api_key=${apiKey}`;
+			return dsUrl.includes('api_key') ? dsUrl : `${dsUrl}&api_key=${apiKey}`;
 		}
 		// Fallback: construct DirectStream URL manually (e.g. for audio)
 		const container = mediaSource.Container || '';
