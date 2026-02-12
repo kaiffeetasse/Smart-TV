@@ -12,15 +12,18 @@
 .sidebar {
 	position: fixed;
 	right: 0;
-	top: 120px;
-	bottom: 0;
+	top: 50%;
+	transform: translateY(-50%);
 	width: 320px;
 	min-width: 320px;
+	height: auto;
+	overflow-y: hidden;
 	background: #141414;
 	padding: 40px 20px;
 	display: flex;
 	flex-direction: column;
-	border-left: 1px solid #252525;
+	border: 1px solid #252525;
+	border-radius: 20px 0 0 20px;
 	z-index: 10;
 
 	> * + * {
@@ -572,15 +575,6 @@
 	}
 }
 
-.activeLabel {
-	font-size: 14px;
-	color: #00a4dc;
-	font-weight: 600;
-	padding: 6px 12px;
-	background: rgba(0, 164, 220, 0.15);
-	border-radius: 4px;
-}
-
 .smallButton {
 	padding: 8px 16px !important;
 	font-size: 14px !important;
@@ -591,17 +585,22 @@
 	color: #fff !important;
 	cursor: pointer;
 	transition: background 0.2s, transform 0.2s;
-
+	
 	&:focus {
 		outline: none;
 		background: #444 !important;
 		transform: scale(1.05);
 	}
+	
+	&.active {
+		background: rgba(0, 164, 220, 0.15) !important;
+		color: #fff !important;
+		cursor: default;
+	}
 }
 
 .dangerButton {
 	background: rgba(255, 255, 255, 0.15) !important;
-	border: 2px solid rgba(255, 255, 255, 0.2) !important;
 	color: #fff !important;
 
 	&:focus {
