@@ -8,7 +8,6 @@
 		"./storage": "./src/storage.js",
 		"./deviceProfile": "./src/deviceProfile.js",
 		"./deviceInfo": "./src/deviceInfo.js",
-		"./video": "./src/video.js",
-		"./views/Player": "./src/views/Player/index.js"
+		"./video": "./src/video.js"
 	}
 }

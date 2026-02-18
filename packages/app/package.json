@@ -26,6 +26,7 @@
 		"ri": {
 			"baseSize": 24
 		},
+
 		"locales": [
 			"en-US"
 		],
@@ -62,8 +63,7 @@
 		"jszip": "^3.10.1",
 		"prop-types": "^15.8.1",
 		"react": "^18.2.0",
-		"react-dom": "^18.2.0",
-		"web-vitals": "^3.5.1"
+		"react-dom": "^18.2.0"
 	},
 	"devDependencies": {
 		"@enact/cli": "^7.2.1",

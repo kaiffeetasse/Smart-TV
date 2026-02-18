@@ -29,6 +29,21 @@ const deleteFiles = (basePath, filenames) => {
 	});
 };
 
+const findDir = (base, target) => {
+	if (!fs.existsSync(base)) return null;
+	const stack = [base];
+	while (stack.length) {
+		const dir = stack.pop();
+		for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+			if (!entry.isDirectory()) continue;
+			const full = path.join(dir, entry.name);
+			if (entry.name === target) return full;
+			stack.push(full);
+		}
+	}
+	return null;
+};
+
 const copyDirRecursive = (src, dest) => {
 	fs.mkdirSync(dest, {recursive: true});
 	for (const entry of fs.readdirSync(src, {withFileTypes: true})) {
@@ -42,6 +57,16 @@ const copyDirRecursive = (src, dest) => {
 	}
 };
 
+const appPkg = require(path.join(APP_DIR, 'package.json'));
+
+// Resolve @moonfin/* aliases to absolute paths so webpack resolves them
+// outside node_modules and babel-loader transpiles them correctly.
+const ENACT_ALIAS = JSON.stringify({
+	'@moonfin/platform-webos': path.resolve(__dirname, '..', 'platform-webos', 'src'),
+	'@moonfin/platform-tizen': path.resolve(__dirname, '..', 'platform-tizen', 'src'),
+	'@moonfin/app': path.resolve(__dirname, '..', 'app')
+});
+
 try {
 	console.log(' Building Moonfin for webOS...\n');
 
@@ -51,7 +76,7 @@ try {
 
 	// Production build with Enact
 	console.log('\n Building with Enact...');
-	run('npx enact pack -p', {cwd: APP_DIR});
+	run('npx enact pack -p', {cwd: APP_DIR, env: {...process.env, ENACT_ALIAS, REACT_APP_VERSION: appPkg.version}});
 
 	// Copy build output
 	console.log('\n Copying build output...');
@@ -67,59 +92,73 @@ try {
 		fs.copyFileSync(bannerSrc, bannerDest);
 	}
 
-	// Remove non-English locales to reduce package size
-	console.log('\n Removing non-English locales due to size constraints...');
-	const localeDir = path.join('dist', 'node_modules', 'ilib', 'locale');
-	removeDirs(localeDir, (name) => !name.startsWith('en'));
+	// Find ilib locale directory (may be nested under _/_/ in mono-repo builds)
+	const ilibDir = findDir(path.resolve('dist'), 'ilib');
+	const localeDir = ilibDir ? path.join(ilibDir, 'locale') : null;
 
-	// Root-level files: phone, currency, unit, address, astronomy data
-	console.log('\n Removing unused ilib data files...');
-	const nonEngLocalefiles = ([
-		'currency.json',
-		'numplan.json',
-		'emergency.json',
-		'unitfmt.json',
-		'phoneloc.json',
-		'phonefmt.json',
-		'iddarea.json',
-		'idd.json',
-		'mnc.json',
-		'address.json',
-		'addressres.json',
-		'astro.json',
-		'pseudomap.json',
-		'collation.json',
-		'countries.json',
-		'nativecountries.json',
-		'ctrynames.json',
-		'ctryreverse.json',
-		'name.json',
-		'lang2charset.json',
-		'ccc.json'
-	]);
-	deleteFiles(path.join('dist', 'node_modules', 'ilib', 'locale'), nonEngLocalefiles);
+	if (localeDir && fs.existsSync(localeDir)) {
+		console.log('\n Removing non-English locales due to size constraints...');
+		console.log(`  ilib found at: ${ilibDir}`);
+		removeDirs(localeDir, (name) => !name.startsWith('en'));
 
-	// Remove Deseret script locale (historic/obsolete)
-	fs.rmSync(path.join('dist', 'node_modules', 'ilib', 'locale', 'en', 'Dsrt'), {recursive: true, force: true});
-	
-	// Strip bulky files from en/ regional subdirs (keep only sysres, dateformats, list, localeinfo, plurals)
-	console.log('\n Removing non-essential files from en/ regional locale dirs...');
-	deleteFiles(path.join('dist', 'node_modules', 'ilib', 'locale', 'en'), nonEngLocalefiles);
+		console.log('\n Removing unused ilib data files...');
+		const nonEngLocalefiles = ([
+			'currency.json',
+			'numplan.json',
+			'emergency.json',
+			'unitfmt.json',
+			'phoneloc.json',
+			'phonefmt.json',
+			'iddarea.json',
+			'idd.json',
+			'mnc.json',
+			'address.json',
+			'addressres.json',
+			'astro.json',
+			'pseudomap.json',
+			'collation.json',
+			'countries.json',
+			'nativecountries.json',
+			'ctrynames.json',
+			'ctryreverse.json',
+			'name.json',
+			'lang2charset.json',
+			'ccc.json'
+		]);
+		deleteFiles(localeDir, nonEngLocalefiles);
+
+		fs.rmSync(path.join(localeDir, 'en', 'Dsrt'), {recursive: true, force: true});
+
+		console.log('\n Removing non-essential files from en/ regional locale dirs...');
+		deleteFiles(path.join(localeDir, 'en'), nonEngLocalefiles);
+	} else {
+		console.log('\n No ilib locale directory found — skipping locale cleanup');
+	}
 
 	// Remove unused font weights to reduce size
-	console.log('\n Removing unused font weights...');
-	const fontFiles = ([
-		'MuseoSans-Thin.ttf',
-		'MuseoSans-BlackItalic.ttf',
-		'MuseoSans-BoldItalic.ttf',
-		'MuseoSans-MediumItalic.ttf'
-	]);
-	deleteFiles(path.join('dist', 'node_modules', '@enact', 'sandstone', 'fonts', 'MuseoSans'), fontFiles);
+	const museoDir = findDir(path.resolve('dist'), 'MuseoSans');
+	if (museoDir) {
+		console.log('\n Removing unused font weights...');
+		const fontFiles = ([
+			'MuseoSans-Thin.ttf',
+			'MuseoSans-BlackItalic.ttf',
+			'MuseoSans-BoldItalic.ttf',
+			'MuseoSans-MediumItalic.ttf'
+		]);
+		deleteFiles(museoDir, fontFiles);
+	}
 
 	// Package into IPK
 	console.log('\n Creating IPK package...');
+	console.log(' Copying webos-meta files...');
+	const webosMeta = path.join(__dirname, 'webos-meta');
+	if (fs.existsSync(webosMeta)) {
+		for (const file of fs.readdirSync(webosMeta)) {
+			fs.copyFileSync(path.join(webosMeta, file), path.join('dist', file));
+		}
+	}
 	fs.mkdirSync('build', {recursive: true});
-	run('npx ares-package ./dist -o ./build');
+	run('npx ares-package ./dist -o ./build --no-minify');
 
 	// Update manifest with version and hash
 	console.log('\n Updating manifest...');

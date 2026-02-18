@@ -127,6 +127,21 @@ function copyFiles(src, dest, pattern = null) {
 	}
 }
 
+function findDir(base, target) {
+	if (!fs.existsSync(base)) return null;
+	const stack = [base];
+	while (stack.length) {
+		const dir = stack.pop();
+		for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+			if (!entry.isDirectory()) continue;
+			const full = path.join(dir, entry.name);
+			if (entry.name === target) return full;
+			stack.push(full);
+		}
+	}
+	return null;
+}
+
 async function main() {
 	console.log('\n' + cyan('═'.repeat(50)));
 	console.log(cyan('  Moonfin Tizen Build'));
@@ -146,7 +161,13 @@ async function main() {
 	log(`Building Enact app (${isDev ? 'development' : 'production'})...`);
 	const packCmd = isDev ? 'npx enact pack' : 'npx enact pack -p';
 	const browserslistConfig = path.join(ROOT, '.browserslistrc');
-	if (!run(packCmd, { cwd: APP_DIR, env: { ...process.env, BROWSERSLIST_CONFIG: browserslistConfig } })) {
+	const enactAlias = JSON.stringify({
+		'@moonfin/platform-webos': path.resolve(ROOT, '..', 'platform-webos', 'src'),
+		'@moonfin/platform-tizen': path.resolve(ROOT, '..', 'platform-tizen', 'src'),
+		'@moonfin/app': path.resolve(ROOT, '..', 'app')
+	});
+	const appPkg = JSON.parse(fs.readFileSync(path.join(APP_DIR, 'package.json'), 'utf8'));
+	if (!run(packCmd, { cwd: APP_DIR, env: { ...process.env, BROWSERSLIST_CONFIG: browserslistConfig, ENACT_ALIAS: enactAlias, REACT_APP_VERSION: appPkg.version } })) {
 		error('Enact build failed!');
 		process.exit(1);
 	}
@@ -234,24 +255,25 @@ async function main() {
 	});
 	
 	// Clean up iLib locale data - keep only essential files
-	const ilibLocalePath = path.join(DIST, 'node_modules', 'ilib', 'locale');
-	if (fs.existsSync(ilibLocalePath)) {
-		// Keep only ilibmanifest.json and en-US locale
+	const ilibDir = findDir(DIST, 'ilib');
+	const ilibLocalePath = ilibDir ? path.join(ilibDir, 'locale') : null;
+	if (ilibLocalePath && fs.existsSync(ilibLocalePath)) {
+		log(`ilib found at: ${ilibDir}`);
 		const localeDirs = fs.readdirSync(ilibLocalePath);
 		let removedCount = 0;
 		localeDirs.forEach(item => {
 			const itemPath = path.join(ilibLocalePath, item);
-			// Keep manifest and English locale
 			if (item === 'ilibmanifest.json' || item === 'en' || item === 'und') {
 				return;
 			}
-			// Remove other locale folders
 			if (fs.statSync(itemPath).isDirectory()) {
 				fs.rmSync(itemPath, { recursive: true, force: true });
 				removedCount++;
 			}
 		});
 		success(`Removed ${removedCount} unused locale folders`);
+	} else {
+		warn('No ilib locale directory found — skipping locale cleanup');
 	}
 	
 	// Step 6: Clean up old .wgt files in root

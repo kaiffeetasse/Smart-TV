@@ -3,8 +3,8 @@ import {lazy, Suspense} from 'react';
 
 const PlatformPlayer = lazy(() =>
 	getPlatform() === 'tizen'
-		? import('@moonfin/platform-tizen/views/Player')
-		: import('@moonfin/platform-webos/views/Player')
+		? import('./TizenPlayer')
+		: import('./WebOSPlayer')
 );
 
 const Player = (props) => (

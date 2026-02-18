@@ -6,7 +6,7 @@ export const getDeviceInfo = () => {
 
 	cached = {
 		platform: 'Tizen',
-		appVersion: '2.0.1',
+		appVersion: process.env.REACT_APP_VERSION || '0.0.0',
 		userAgent: navigator.userAgent || 'Unknown',
 		screenSize: `${window.screen.width}x${window.screen.height}`,
 		tvVersion: 'Unknown',

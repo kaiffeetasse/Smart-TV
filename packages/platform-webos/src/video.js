@@ -1,4 +1,3 @@
-/* global navigator */
 // webOS Video Service - Luna API interface for hardware video playback
 // Capability detection is handled by deviceProfile.js — this module focuses on
 // playback decisions, audio codec checks, and Luna hardware control.

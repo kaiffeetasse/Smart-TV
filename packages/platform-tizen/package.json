@@ -10,7 +10,6 @@
 		"./deviceInfo": "./src/deviceInfo.js",
 		"./video": "./src/video.js",
 		"./smarthub": "./src/smarthub.js",
-		"./keys": "./src/keys.js",
-		"./views/Player": "./src/views/Player/index.js"
+		"./keys": "./src/keys.js"
 	}
 }

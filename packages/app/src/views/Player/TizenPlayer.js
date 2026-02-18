@@ -9,22 +9,22 @@ import {
 	avplaySeek, avplayGetCurrentTime, avplayGetDuration, avplayGetState,
 	avplaySetListener, avplaySetSpeed, avplaySelectTrack, avplaySetSilentSubtitle,
 	avplayGetTracks, avplaySetDisplayMethod, setDisplayWindow, cleanupAVPlay
-} from '../../services/tizenVideo';
+} from '@moonfin/platform-tizen/video';
 import {useSettings} from '../../context/SettingsContext';
-import {TIZEN_KEYS, isBackKey} from '../../utils/tizenKeys';
+import {KEYS, isBackKey} from '../../utils/keys';
 import {getImageUrl} from '../../utils/helpers';
 import {getServerUrl} from '../../services/jellyfinApi';
 import TrickplayPreview from '../../components/TrickplayPreview';
-import SubtitleOffsetOverlay from '@moonfin/app/src/views/Player/SubtitleOffsetOverlay';
-import SubtitleSettingsOverlay from '@moonfin/app/src/views/Player/SubtitleSettingsOverlay';
+import SubtitleOffsetOverlay from './SubtitleOffsetOverlay';
+import SubtitleSettingsOverlay from './SubtitleSettingsOverlay';
 import {
 	SpottableButton, SpottableDiv, ModalContainer,
 	formatTime, formatEndTime, PLAYBACK_RATES, QUALITY_PRESETS, CONTROLS_HIDE_DELAY,
 	IconPlay, IconPause, IconRewind, IconForward, IconSubtitle, IconAudio,
 	IconChapters, IconPrevious, IconNext, IconSpeed, IconQuality, IconInfo
-} from '@moonfin/app/src/views/Player/PlayerConstants';
+} from './PlayerConstants';
 
-import css from './Player.module.less';
+import css from './TizenPlayer.module.less';
 
 /**
  * AVPlay-based Player component for Samsung Tizen.
@@ -1213,7 +1213,7 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 			const key = e.key || e.keyCode;
 
 			// Media playback keys (Tizen remote)
-			if (e.keyCode === TIZEN_KEYS.PLAY) {
+			if (e.keyCode === KEYS.PLAY) {
 				e.preventDefault();
 				e.stopPropagation();
 				showControls();
@@ -1224,7 +1224,7 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 				}
 				return;
 			}
-			if (e.keyCode === TIZEN_KEYS.PAUSE) {
+			if (e.keyCode === KEYS.PAUSE) {
 				e.preventDefault();
 				e.stopPropagation();
 				showControls();
@@ -1235,28 +1235,28 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 				}
 				return;
 			}
-			if (e.keyCode === TIZEN_KEYS.PLAY_PAUSE) {
+			if (e.keyCode === KEYS.PLAY_PAUSE) {
 				e.preventDefault();
 				e.stopPropagation();
 				showControls();
 				handlePlayPause();
 				return;
 			}
-			if (e.keyCode === TIZEN_KEYS.FAST_FORWARD) {
+			if (e.keyCode === KEYS.FAST_FORWARD) {
 				e.preventDefault();
 				e.stopPropagation();
 				handleForward();
 				showControls();
 				return;
 			}
-			if (e.keyCode === TIZEN_KEYS.REWIND) {
+			if (e.keyCode === KEYS.REWIND) {
 				e.preventDefault();
 				e.stopPropagation();
 				handleRewind();
 				showControls();
 				return;
 			}
-			if (e.keyCode === TIZEN_KEYS.STOP) {
+			if (e.keyCode === KEYS.STOP) {
 				e.preventDefault();
 				e.stopPropagation();
 				handleBack();

@@ -2,7 +2,6 @@
 import {createRoot, hydrateRoot} from 'react-dom/client';
 
 import App from './App';
-import reportWebVitals from './reportWebVitals';
 import {isTizen} from './platform';
 import {registerKeys, ESSENTIAL_KEY_NAMES} from './utils/keys';
 
@@ -34,5 +33,3 @@ if (typeof window !== 'undefined') {
 }
 
 export default appElement;
-
-reportWebVitals();

@@ -1,4 +1,3 @@
-/* global navigator, localStorage */
 // Device Profile Service - webOS hardware capability detection via Luna APIs
 
 let cachedCapabilities = null;

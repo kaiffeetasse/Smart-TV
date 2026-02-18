@@ -1,6 +1,3 @@
-/* global navigator */
-import packageJson from '../../package.json';
-
 let cached = null;
 
 export const getDeviceInfo = async () => {
@@ -8,7 +5,7 @@ export const getDeviceInfo = async () => {
 
 	cached = {
 		platform: 'webOS',
-		appVersion: packageJson.version,
+		appVersion: process.env.REACT_APP_VERSION || '0.0.0',
 		userAgent: navigator.userAgent || 'Unknown',
 		screenSize: `${window.screen.width}x${window.screen.height}`,
 		tvVersion: 'Unknown',

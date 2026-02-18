@@ -1,3 +1,4 @@
+/* global tizen */
 import {useState, useCallback, useEffect, lazy, Suspense, useRef} from 'react';
 import ThemeDecorator from '@enact/sandstone/ThemeDecorator';
 import {Panels, Panel} from '@enact/sandstone/Panels';
@@ -7,8 +8,8 @@ import {useSettings} from '../context/SettingsContext';
 import * as playback from '../services/playback';
 import * as connectionPool from '../services/connectionPool';
 import {isBackKey, KEYS} from '../utils/keys';
-import {getPlatform, isTizen, isWebOS} from '../platform';
-import {cleanupVideoElement, setupVisibilityHandler, setupPlatformLifecycle} from '../services/video';
+import {isTizen, isWebOS} from '../platform';
+import {initVideo, cleanupVideoElement, setupVisibilityHandler, setupPlatformLifecycle} from '../services/video';
 import {SettingsProvider} from '../context/SettingsContext';
 import {JellyseerrProvider} from '../context/JellyseerrContext';
 import {useVersionCheck} from '../hooks/useVersionCheck';
@@ -208,8 +209,15 @@ const AppContent = (props) => {
 		window.addEventListener('beforeunload', handleBeforeUnload);
 		window.addEventListener('pagehide', handlePageHide);
 
-		const removeVisibilityHandler = setupVisibilityHandler(handleVisibilityHidden, handleVisibilityVisible);
-		const removeLifecycleHandler = setupPlatformLifecycle(handleRelaunch);
+		let removeVisibilityHandler;
+		let removeLifecycleHandler;
+		let cancelled = false;
+
+		initVideo().then(() => {
+			if (cancelled) return;
+			removeVisibilityHandler = setupVisibilityHandler(handleVisibilityHidden, handleVisibilityVisible);
+			removeLifecycleHandler = setupPlatformLifecycle(handleRelaunch);
+		});
 
 		if (isTizen()) {
 			import('@moonfin/platform-tizen/smarthub').then(m => m.initSmartHub()).catch(() => {});
@@ -225,11 +233,12 @@ const AppContent = (props) => {
 			window.removeEventListener('beforeunload', handleBeforeUnload);
 			window.removeEventListener('pagehide', handlePageHide);
 			if (handlePlatformLaunch) document.removeEventListener('webOSLaunch', handlePlatformLaunch);
-			removeVisibilityHandler();
-			removeLifecycleHandler();
+			removeVisibilityHandler?.();
+			removeLifecycleHandler?.();
 		};
 
 		return () => {
+			cancelled = true;
 			if (cleanupHandlersRef.current) {
 				cleanupHandlersRef.current();
 			}

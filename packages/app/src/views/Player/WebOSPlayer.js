@@ -13,19 +13,19 @@ import {
 	cleanupVideoElement,
 	setupVisibilityHandler,
 	setupWebOSLifecycle
-} from '../../services/webosVideo';
+} from '@moonfin/platform-webos/video';
 import {useSettings} from '../../context/SettingsContext';
 import TrickplayPreview from '../../components/TrickplayPreview';
-import SubtitleOffsetOverlay from '@moonfin/app/src/views/Player/SubtitleOffsetOverlay';
-import SubtitleSettingsOverlay from '@moonfin/app/src/views/Player/SubtitleSettingsOverlay';
+import SubtitleOffsetOverlay from './SubtitleOffsetOverlay';
+import SubtitleSettingsOverlay from './SubtitleSettingsOverlay';
 import {
 	SpottableButton, SpottableDiv, ModalContainer, NextEpisodeContainer,
 	formatTime, formatEndTime, PLAYBACK_RATES, QUALITY_PRESETS, CONTROLS_HIDE_DELAY,
 	IconPlay, IconPause, IconRewind, IconForward, IconSubtitle, IconAudio,
 	IconChapters, IconPrevious, IconNext, IconSpeed, IconQuality, IconInfo
-} from '@moonfin/app/src/views/Player/PlayerConstants';
+} from './PlayerConstants';
 
-import css from './Player.module.less';
+import css from './WebOSPlayer.module.less';
 
 const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded, onBack, onPlayNext, audioPlaylist}) => {
 	const {settings} = useSettings();

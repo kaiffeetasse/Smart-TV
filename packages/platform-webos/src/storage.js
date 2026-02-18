@@ -1,4 +1,3 @@
-/* global localStorage */
 let LS2Request = null;
 
 const loadLS2Request = async () => {
