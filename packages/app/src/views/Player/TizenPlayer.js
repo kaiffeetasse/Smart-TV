@@ -1,7 +1,6 @@
 import {useState, useEffect, useCallback, useRef, useMemo} from 'react';
 import Spotlight from '@enact/spotlight';
 import Button from '@enact/sandstone/Button';
-import Scroller from '@enact/sandstone/Scroller';
 import * as playback from '../../services/playback';
 import {
 	initTizenAPI, registerAppStateObserver, keepScreenOn,
@@ -14,15 +13,8 @@ import {useSettings} from '../../context/SettingsContext';
 import {KEYS, isBackKey} from '../../utils/keys';
 import {getImageUrl} from '../../utils/helpers';
 import {getServerUrl} from '../../services/jellyfinApi';
-import TrickplayPreview from '../../components/TrickplayPreview';
-import SubtitleOffsetOverlay from './SubtitleOffsetOverlay';
-import SubtitleSettingsOverlay from './SubtitleSettingsOverlay';
-import {
-	SpottableButton, SpottableDiv, ModalContainer,
-	formatTime, formatEndTime, PLAYBACK_RATES, QUALITY_PRESETS, CONTROLS_HIDE_DELAY,
-	IconPlay, IconPause, IconRewind, IconForward, IconSubtitle, IconAudio,
-	IconChapters, IconPrevious, IconNext, IconSpeed, IconQuality, IconInfo
-} from './PlayerConstants';
+import PlayerControls, {usePlayerButtons} from './PlayerControls';
+import {CONTROLS_HIDE_DELAY} from './PlayerConstants';
 
 import css from './TizenPlayer.module.less';
 
@@ -115,41 +107,10 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 		}
 	}, []);
 
-	const topButtons = useMemo(() => {
-		const buttons = [
-			{id: 'playPause', icon: isPaused ? <IconPlay /> : <IconPause />, label: isPaused ? 'Play' : 'Pause', action: 'playPause'}
-		];
-		if (isAudioMode) {
-			buttons.unshift(
-				{id: 'previous', icon: <IconPrevious />, label: 'Previous', action: 'prevTrack', disabled: !hasPrevTrack}
-			);
-			buttons.push(
-				{id: 'next', icon: <IconNext />, label: 'Next', action: 'nextTrack', disabled: !hasNextTrack}
-			);
-		} else {
-			buttons.push(
-				{id: 'rewind', icon: <IconRewind />, label: 'Rewind', action: 'rewind'},
-				{id: 'forward', icon: <IconForward />, label: 'Forward', action: 'forward'},
-				{id: 'audio', icon: <IconAudio />, label: 'Audio', action: 'audio', disabled: audioStreams.length === 0},
-				{id: 'subtitle', icon: <IconSubtitle />, label: 'Subtitles', action: 'subtitle', disabled: subtitleStreams.length === 0}
-			);
-		}
-		return buttons;
-	}, [isPaused, audioStreams.length, subtitleStreams.length, isAudioMode, hasNextTrack, hasPrevTrack]);
-
-	const bottomButtons = useMemo(() => {
-		if (isAudioMode) {
-			return [];
-		}
-		return [
-			{id: 'chapters', icon: <IconChapters />, label: 'Chapters', action: 'chapter', disabled: chapters.length === 0},
-			{id: 'previous', icon: <IconPrevious />, label: 'Previous', action: 'previous', disabled: true},
-			{id: 'next', icon: <IconNext />, label: 'Next', action: 'next', disabled: !nextEpisode},
-			{id: 'speed', icon: <IconSpeed />, label: 'Speed', action: 'speed'},
-			{id: 'quality', icon: <IconQuality />, label: 'Quality', action: 'quality'},
-			{id: 'info', icon: <IconInfo />, label: 'Info', action: 'info'}
-		];
-	}, [chapters.length, nextEpisode, isAudioMode]);
+	const {topButtons, bottomButtons} = usePlayerButtons({
+		isPaused, audioStreams, subtitleStreams, chapters,
+		nextEpisode, isAudioMode, hasNextTrack, hasPrevTrack
+	});
 
 	// ==============================
 	// AVPlay Time Update Polling
@@ -778,25 +739,34 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 
 	useEffect(() => {
 		if (showSkipIntro && !activeModal) {
+			hideControls();
 			window.requestAnimationFrame(() => {
 				Spotlight.focus('skip-intro-btn');
 			});
 		}
-	}, [showSkipIntro, activeModal]);
+	}, [showSkipIntro, activeModal, hideControls]);
 
 	// Start next episode countdown when credits detected
 	useEffect(() => {
 		if (showSkipCredits && nextEpisode && settings.autoPlay) {
+			hideControls();
 			startNextEpisodeCountdown();
+			window.requestAnimationFrame(() => {
+				Spotlight.focus('next-episode-play-btn');
+			});
 		}
-	}, [showSkipCredits, nextEpisode, settings.autoPlay, startNextEpisodeCountdown]);
+	}, [showSkipCredits, nextEpisode, settings.autoPlay, startNextEpisodeCountdown, hideControls]);
 
 	// Start next episode countdown when near end
 	useEffect(() => {
 		if (showNextEpisode && !showSkipCredits && nextEpisode && settings.autoPlay) {
+			hideControls();
 			startNextEpisodeCountdown();
+			window.requestAnimationFrame(() => {
+				Spotlight.focus('next-episode-play-btn');
+			});
 		}
-	}, [showNextEpisode, showSkipCredits, nextEpisode, settings.autoPlay, startNextEpisodeCountdown]);
+	}, [showNextEpisode, showSkipCredits, nextEpisode, settings.autoPlay, startNextEpisodeCountdown, hideControls]);
 
 	// ==============================
 	// Playback Event Handlers (via AVPlay listener refs)
@@ -1275,7 +1245,23 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 					hideControls();
 					return;
 				}
+				// Dismiss skip/next overlays with Back instead of exiting
+				if (showSkipIntro) {
+					setShowSkipIntro(false);
+					return;
+				}
+				if (showSkipCredits || showNextEpisode) {
+					cancelNextEpisodeCountdown();
+					return;
+				}
 				handleBack();
+				return;
+			}
+
+			// When skip/next-episode overlay is visible, let Spotlight handle focus naturally
+			if (!controlsVisible && !activeModal && (showSkipIntro || showSkipCredits || showNextEpisode)) {
+				// Only intercept Back key (handled above) and media keys; let all other keys
+				// pass through to the focused skip/next-episode button via Spotlight.
 				return;
 			}
 
@@ -1341,7 +1327,7 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, duration, settings.seekStep, showNextEpisode, showSkipCredits, nextEpisode, cancelNextEpisodeCountdown, bottomButtons.length, scheduleDeferredSeek]);
+	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, duration, settings.seekStep, showNextEpisode, showSkipCredits, showSkipIntro, nextEpisode, cancelNextEpisodeCountdown, bottomButtons.length, scheduleDeferredSeek]);
 
 	// Calculate progress - use seekPosition when actively seeking for smooth scrubbing
 	const displayTime = isSeeking ? (seekPosition / 10000000) : currentTime;
@@ -1351,15 +1337,13 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 	useEffect(() => {
 		if (!controlsVisible) return;
 
-		const timer = setTimeout(() => {
+		window.requestAnimationFrame(() => {
 			if (focusRow === 'progress') {
 				Spotlight.focus('progress-bar');
 			} else if (focusRow === 'bottom') {
 				Spotlight.focus('bottom-row-default');
 			}
-		}, 50);
-
-		return () => clearTimeout(timer);
+		});
 	}, [focusRow, controlsVisible]);
 
 	// ==============================
@@ -1480,17 +1464,8 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 				</div>
 			)}
 
-			{/* Skip Intro Button */}
-			{showSkipIntro && !isAudioMode && !activeModal && (
-				<div className={css.skipOverlay}>
-					<SpottableButton className={css.skipButton} onClick={handleSkipIntro} spotlightId="skip-intro-btn">
-						Skip Intro
-					</SpottableButton>
-				</div>
-			)}
-
 			{/* Next Episode Overlay */}
-			{(showSkipCredits || showNextEpisode) && nextEpisode && !isAudioMode && !activeModal && (
+			{(showSkipCredits || showNextEpisode) && nextEpisode && !isAudioMode && !activeModal && !controlsVisible && (
 				<div className={css.nextEpisodeOverlay}>
 					<div className={css.nextLabel}>Up Next</div>
 					<div className={css.nextTitle}>{nextEpisode.Name}</div>
@@ -1505,449 +1480,62 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 						</div>
 					)}
 					<div className={css.nextButtons}>
-						<Button onClick={handlePlayNextEpisode}>Play Now</Button>
+						<Button onClick={handlePlayNextEpisode} spotlightId="next-episode-play-btn">Play Now</Button>
 						<Button onClick={cancelNextEpisodeCountdown}>Hide</Button>
 					</div>
 				</div>
 			)}
 
-			{/* Player Controls Overlay */}
-			<div className={`${css.playerControls} ${controlsVisible && !activeModal ? css.visible : ''} ${isAudioMode ? css.audioControls : ''}`}>
-				{/* Top - Media Info (hidden in audio mode, shown in album art area instead) */}
-				{!isAudioMode && (
-				<div className={css.controlsTop}>
-					<div className={css.mediaInfo}>
-						<h1 className={css.mediaTitle}>{title}</h1>
-						{subtitle && <p className={css.mediaSubtitle}>{subtitle}</p>}
+			<PlayerControls
+				css={css}
+				controlsVisible={controlsVisible}
+				activeModal={activeModal}
+				isAudioMode={isAudioMode}
+				focusRow={focusRow}
+				title={title}
+				subtitle={subtitle}
+				topButtons={topButtons}
+				bottomButtons={bottomButtons}
+				displayTime={displayTime}
+				duration={duration}
+				progressPercent={progressPercent}
+				isSeeking={isSeeking}
+				seekPosition={seekPosition}
+				item={item}
+				mediaSourceId={mediaSourceId}
+				playMethod={playMethod}
+				playbackRate={playbackRate}
+				selectedAudioIndex={selectedAudioIndex}
+				selectedSubtitleIndex={selectedSubtitleIndex}
+				selectedQuality={selectedQuality}
+				audioStreams={audioStreams}
+				subtitleStreams={subtitleStreams}
+				chapters={chapters}
+				currentTime={currentTime}
+				subtitleOffset={subtitleOffset}
+				showSkipIntro={showSkipIntro}
+				handleControlButtonClick={handleControlButtonClick}
+				handleProgressClick={handleProgressClick}
+				handleProgressKeyDown={handleProgressKeyDown}
+				handleProgressBlur={handleProgressBlur}
+				handleSkipIntro={handleSkipIntro}
+				handleSelectAudio={handleSelectAudio}
+				handleSelectSubtitle={handleSelectSubtitle}
+				handleSubtitleKeyDown={handleSubtitleItemKeyDown}
+				handleSelectSpeed={handleSelectSpeed}
+				handleSelectQuality={handleSelectQuality}
+				handleSelectChapter={handleSelectChapter}
+				handleOpenSubtitleOffset={handleOpenSubtitleOffset}
+				handleOpenSubtitleSettings={handleOpenSubtitleSettings}
+				handleSubtitleOffsetChange={handleSubtitleOffsetChange}
+				closeModal={closeModal}
+				stopPropagation={stopPropagation}
+				renderInfoPlaybackRows={({css: c}) => (
+					<div className={c.infoRow}>
+						<span className={c.infoLabel}>Player</span>
+						<span className={c.infoValue}>AVPlay (Native)</span>
 					</div>
-				</div>
 				)}
-
-				{/* Bottom - Controls */}
-				<div className={css.controlsBottom}>
-					{/* Top Row Buttons */}
-					<div className={css.controlButtons}>
-						{topButtons.map((btn) => (
-							<SpottableButton
-								key={btn.id}
-								className={`${css.controlBtn} ${btn.disabled ? css.controlBtnDisabled : ''}`}
-								data-action={btn.action}
-								onClick={btn.disabled ? undefined : handleControlButtonClick}
-								aria-label={btn.label}
-								aria-disabled={btn.disabled}
-								spotlightDisabled={focusRow !== 'top'}
-							>
-								{btn.icon}
-							</SpottableButton>
-						))}
-					</div>
-
-					{/* Progress Bar */}
-					<div className={css.progressContainer}>
-						<div className={css.timeInfoTop}>
-							<span className={css.timeEnd}>{formatEndTime(duration - displayTime)}</span>
-						</div>
-						<SpottableDiv
-							className={css.progressBar}
-							onClick={handleProgressClick}
-							onKeyDown={handleProgressKeyDown}
-							onBlur={handleProgressBlur}
-							tabIndex={0}
-							spotlightDisabled={focusRow !== 'progress'}
-							spotlightId="progress-bar"
-						>
-							<div className={css.progressFill} style={{width: `${progressPercent}%`}} />
-							<div className={css.seekIndicator} style={{left: `${progressPercent}%`}} />
-							{isSeeking && !isAudioMode && (
-								<TrickplayPreview
-									itemId={item.Id}
-									mediaSourceId={mediaSourceId}
-									positionTicks={seekPosition}
-									visible
-									style={{left: `${progressPercent}%`}}
-								/>
-							)}
-						</SpottableDiv>
-						<div className={css.timeInfo}>
-							<span className={css.timeDisplay}>
-								{formatTime(displayTime)} / {formatTime(duration)}
-							</span>
-						</div>
-					</div>
-
-					{/* Bottom Row Buttons */}
-					{bottomButtons.length > 0 && (
-					<div className={css.controlButtonsBottom}>
-						{bottomButtons.map((btn) => (
-							<SpottableButton
-								key={btn.id}
-								className={`${css.controlBtn} ${btn.disabled ? css.controlBtnDisabled : ''}`}
-								data-action={btn.action}
-								onClick={btn.disabled ? undefined : handleControlButtonClick}
-								aria-label={btn.label}
-								aria-disabled={btn.disabled}
-								spotlightDisabled={focusRow !== 'bottom'}
-								spotlightId={btn.id === 'chapters' ? 'bottom-row-default' : undefined}
-							>
-								{btn.icon}
-							</SpottableButton>
-						))}
-					</div>
-					)}
-				</div>
-			</div>
-
-			{/* Audio Track Modal */}
-			{activeModal === 'audio' && (
-				<div className={css.trackModal} onClick={closeModal}>
-					<ModalContainer className={css.modalContent} onClick={stopPropagation} data-modal="audio" spotlightId="audio-modal">
-						<h2 className={css.modalTitle}>Select Audio Track</h2>
-						<div className={css.trackList}>
-							{audioStreams.map((stream) => (
-								<SpottableButton
-									key={stream.index}
-									className={`${css.trackItem} ${stream.index === selectedAudioIndex ? css.selected : ''}`}
-									data-index={stream.index}
-									data-selected={stream.index === selectedAudioIndex ? 'true' : undefined}
-									onClick={handleSelectAudio}
-								>
-									<span className={css.trackName}>{stream.displayTitle}</span>
-									{stream.channels && <span className={css.trackInfo}>{stream.channels}ch</span>}
-								</SpottableButton>
-							))}
-						</div>
-						<p className={css.modalFooter}>Press BACK to close</p>
-					</ModalContainer>
-				</div>
-			)}
-
-			{/* Subtitle Modal */}
-			{activeModal === 'subtitle' && (
-				<div className={css.trackModal} onClick={closeModal}>
-					<ModalContainer className={css.modalContent} onClick={stopPropagation} data-modal="subtitle" spotlightId="subtitle-modal">
-						<h2 className={css.modalTitle}>Select Subtitle</h2>
-						<div className={css.trackList}>
-							<SpottableButton
-								className={`${css.trackItem} ${selectedSubtitleIndex === -1 ? css.selected : ''}`}
-								data-index={-1}
-								data-selected={selectedSubtitleIndex === -1 ? 'true' : undefined}
-								onClick={handleSelectSubtitle}
-								onKeyDown={handleSubtitleItemKeyDown}
-							>
-								<span className={css.trackName}>Off</span>
-							</SpottableButton>
-							{subtitleStreams.map((stream) => (
-								<SpottableButton
-									key={stream.index}
-									className={`${css.trackItem} ${stream.index === selectedSubtitleIndex ? css.selected : ''}`}
-									data-index={stream.index}
-									data-selected={stream.index === selectedSubtitleIndex ? 'true' : undefined}
-									onClick={handleSelectSubtitle}
-									onKeyDown={handleSubtitleItemKeyDown}
-								>
-									<span className={css.trackName}>{stream.displayTitle}</span>
-									{stream.isForced && <span className={css.trackInfo}>Forced</span>}
-								</SpottableButton>
-							))}
-						</div>
-						<p className={css.modalFooter}>
-							<SpottableButton spotlightId="btn-subtitle-offset" className={css.actionBtn} onClick={handleOpenSubtitleOffset}>Offset</SpottableButton>
-							<SpottableButton spotlightId="btn-subtitle-appearance" className={css.actionBtn} onClick={handleOpenSubtitleSettings} style={{marginLeft: 15}}>Appearance</SpottableButton>
-						</p>
-						<p className={css.modalFooter} style={{marginTop: 5, fontSize: 14, opacity: 0.5}}>Press BACK to close</p>
-					</ModalContainer>
-				</div>
-			)}
-
-			{/* Speed Modal */}
-			{activeModal === 'speed' && (
-				<div className={css.trackModal} onClick={closeModal}>
-					<ModalContainer className={css.modalContent} onClick={stopPropagation} data-modal="speed" spotlightId="speed-modal">
-						<h2 className={css.modalTitle}>Playback Speed</h2>
-						<div className={css.trackList}>
-							{PLAYBACK_RATES.map((rate) => (
-								<SpottableButton
-									key={rate}
-									className={`${css.trackItem} ${rate === playbackRate ? css.selected : ''}`}
-									data-rate={rate}
-									data-selected={rate === playbackRate ? 'true' : undefined}
-									onClick={handleSelectSpeed}
-								>
-									<span className={css.trackName}>{rate === 1 ? 'Normal' : `${rate}x`}</span>
-								</SpottableButton>
-							))}
-						</div>
-						<p className={css.modalFooter}>Press BACK to close</p>
-					</ModalContainer>
-				</div>
-			)}
-
-			{/* Quality Modal */}
-			{activeModal === 'quality' && (
-				<div className={css.trackModal} onClick={closeModal}>
-					<ModalContainer className={css.modalContent} onClick={stopPropagation} data-modal="quality" spotlightId="quality-modal">
-						<h2 className={css.modalTitle}>Max Bitrate</h2>
-						<div className={css.trackList}>
-							{QUALITY_PRESETS.map((preset) => (
-								<SpottableButton
-									key={preset.label}
-									className={`${css.trackItem} ${selectedQuality === preset.value ? css.selected : ''}`}
-									data-value={preset.value === null ? 'null' : preset.value}
-									data-selected={selectedQuality === preset.value ? 'true' : undefined}
-									onClick={handleSelectQuality}
-								>
-									<span className={css.trackName}>{preset.label}</span>
-								</SpottableButton>
-							))}
-						</div>
-						<p className={css.modalFooter}>Current: {playMethod || 'Unknown'}</p>
-					</ModalContainer>
-				</div>
-			)}
-
-			{/* Chapter Modal */}
-			{activeModal === 'chapter' && (
-				<div className={css.trackModal} onClick={closeModal}>
-					<ModalContainer className={`${css.modalContent} ${css.chaptersModal}`} onClick={stopPropagation} data-modal="chapter" spotlightId="chapter-modal">
-						<h2 className={css.modalTitle}>Chapters</h2>
-						<div className={css.trackList}>
-							{chapters.map((chapter) => {
-								const chapterTime = chapter.startPositionTicks / 10000000;
-								const isCurrent = currentTime >= chapterTime &&
-									(chapters.indexOf(chapter) === chapters.length - 1 ||
-									 currentTime < chapters[chapters.indexOf(chapter) + 1].startPositionTicks / 10000000);
-								return (
-									<SpottableButton
-										key={chapter.index}
-										className={`${css.chapterItem} ${isCurrent ? css.currentChapter : ''}`}
-										data-ticks={chapter.startPositionTicks}
-										data-selected={isCurrent ? 'true' : undefined}
-										onClick={handleSelectChapter}
-									>
-										<span className={css.chapterTime}>{formatTime(chapterTime)}</span>
-										<span className={css.chapterName}>{chapter.name}</span>
-									</SpottableButton>
-								);
-							})}
-						</div>
-						<p className={css.modalFooter}>Press BACK to close</p>
-					</ModalContainer>
-				</div>
-			)}
-
-			{/* Info Modal */}
-			{activeModal === 'info' && (() => {
-				const session = playback.getCurrentSession();
-				const mediaSource = session?.mediaSource;
-				const videoStream = mediaSource?.MediaStreams?.find(s => s.Type === 'Video');
-				const audioStream = mediaSource?.MediaStreams?.find(s => s.Index === selectedAudioIndex) ||
-					mediaSource?.MediaStreams?.find(s => s.Type === 'Audio');
-				const subtitleStream = selectedSubtitleIndex >= 0
-					? mediaSource?.MediaStreams?.find(s => s.Index === selectedSubtitleIndex)
-					: null;
-
-				// Format bitrate nicely
-				const formatBitrate = (bitrate) => {
-					if (!bitrate) return 'Unknown';
-					if (bitrate >= 1000000) return `${(bitrate / 1000000).toFixed(1)} Mbps`;
-					if (bitrate >= 1000) return `${(bitrate / 1000).toFixed(0)} Kbps`;
-					return `${bitrate} bps`;
-				};
-
-				// Get HDR type
-				const getHdrType = () => {
-					if (!videoStream) return 'SDR';
-					const rangeType = videoStream.VideoRangeType || '';
-					if (rangeType.includes('DOVI') || rangeType.includes('DoVi')) return 'Dolby Vision';
-					if (rangeType.includes('HDR10Plus') || rangeType.includes('HDR10+')) return 'HDR10+';
-					if (rangeType.includes('HDR10') || rangeType.includes('HDR')) return 'HDR10';
-					if (rangeType.includes('HLG')) return 'HLG';
-					if (videoStream.VideoRange === 'HDR') return 'HDR';
-					return 'SDR';
-				};
-
-				// Get video codec with profile
-				const getVideoCodec = () => {
-					if (!videoStream) return 'Unknown';
-					let codec = (videoStream.Codec || '').toUpperCase();
-					if (codec === 'HEVC') codec = 'HEVC (H.265)';
-					else if (codec === 'H264' || codec === 'AVC') codec = 'AVC (H.264)';
-					else if (codec === 'AV1') codec = 'AV1';
-					else if (codec === 'VP9') codec = 'VP9';
-
-					if (videoStream.Profile) {
-						codec += ` ${videoStream.Profile}`;
-					}
-					if (videoStream.Level) {
-						codec += `@L${videoStream.Level}`;
-					}
-					return codec;
-				};
-
-				// Get audio codec with channels
-				const getAudioCodec = () => {
-					if (!audioStream) return 'Unknown';
-					let codec = (audioStream.Codec || '').toUpperCase();
-					if (codec === 'EAC3') codec = 'E-AC3 (Dolby Digital Plus)';
-					else if (codec === 'AC3') codec = 'AC3 (Dolby Digital)';
-					else if (codec === 'TRUEHD') codec = 'TrueHD';
-					else if (codec === 'DTS') codec = 'DTS';
-					else if (codec === 'AAC') codec = 'AAC';
-					else if (codec === 'FLAC') codec = 'FLAC';
-
-					return codec;
-				};
-
-				const getAudioChannels = () => {
-					if (!audioStream) return 'Unknown';
-					const channels = audioStream.Channels;
-					if (!channels) return 'Unknown';
-					if (channels === 8) return '7.1';
-					if (channels === 6) return '5.1';
-					if (channels === 2) return 'Stereo';
-					if (channels === 1) return 'Mono';
-					return `${channels} channels`;
-				};
-
-				return (
-					<div className={css.trackModal} onClick={closeModal}>
-						<div className={`${css.modalContent} ${css.videoInfoModal}`} onClick={stopPropagation}>
-							<h2 className={css.modalTitle}>Playback Information</h2>
-							<Scroller
-								className={css.videoInfoContent}
-								direction="vertical"
-								horizontalScrollbar="hidden"
-								verticalScrollbar="hidden"
-							>
-								{/* Playback Section */}
-								<SpottableDiv className={css.infoSection} spotlightId="info-playback">
-									<h3 className={css.infoHeader}>Playback</h3>
-									<div className={`${css.infoRow} ${css.infoHighlight}`}>
-										<span className={css.infoLabel}>Play Method</span>
-										<span className={css.infoValue}>{playMethod || 'Unknown'}</span>
-									</div>
-									<div className={css.infoRow}>
-										<span className={css.infoLabel}>Player</span>
-										<span className={css.infoValue}>AVPlay (Native)</span>
-									</div>
-									<div className={css.infoRow}>
-										<span className={css.infoLabel}>Container</span>
-										<span className={css.infoValue}>
-											{(mediaSource?.Container || 'Unknown').toUpperCase()}
-										</span>
-									</div>
-									<div className={css.infoRow}>
-										<span className={css.infoLabel}>Bitrate</span>
-										<span className={css.infoValue}>
-											{formatBitrate(mediaSource?.Bitrate)}
-										</span>
-									</div>
-								</SpottableDiv>
-
-								{/* Video Section */}
-								{videoStream && (
-									<SpottableDiv className={css.infoSection} spotlightId="info-video">
-										<h3 className={css.infoHeader}>Video</h3>
-										<div className={css.infoRow}>
-											<span className={css.infoLabel}>Resolution</span>
-											<span className={css.infoValue}>
-												{videoStream.Width}×{videoStream.Height}
-												{videoStream.RealFrameRate && ` @ ${Math.round(videoStream.RealFrameRate)}fps`}
-											</span>
-										</div>
-										<div className={css.infoRow}>
-											<span className={css.infoLabel}>HDR</span>
-											<span className={css.infoValue}>{getHdrType()}</span>
-										</div>
-										<div className={css.infoRow}>
-											<span className={css.infoLabel}>Codec</span>
-											<span className={css.infoValue}>{getVideoCodec()}</span>
-										</div>
-										{videoStream.BitRate && (
-											<div className={css.infoRow}>
-												<span className={css.infoLabel}>Video Bitrate</span>
-												<span className={css.infoValue}>{formatBitrate(videoStream.BitRate)}</span>
-											</div>
-										)}
-									</SpottableDiv>
-								)}
-
-								{/* Audio Section */}
-								{audioStream && (
-									<SpottableDiv className={css.infoSection} spotlightId="info-audio">
-										<h3 className={css.infoHeader}>Audio</h3>
-										<div className={css.infoRow}>
-											<span className={css.infoLabel}>Track</span>
-											<span className={css.infoValue}>
-												{audioStream.DisplayTitle || audioStream.Language || 'Unknown'}
-											</span>
-										</div>
-										<div className={css.infoRow}>
-											<span className={css.infoLabel}>Codec</span>
-											<span className={css.infoValue}>{getAudioCodec()}</span>
-										</div>
-										<div className={css.infoRow}>
-											<span className={css.infoLabel}>Channels</span>
-											<span className={css.infoValue}>{getAudioChannels()}</span>
-										</div>
-										{audioStream.BitRate && (
-											<div className={css.infoRow}>
-												<span className={css.infoLabel}>Audio Bitrate</span>
-												<span className={css.infoValue}>{formatBitrate(audioStream.BitRate)}</span>
-											</div>
-										)}
-										{audioStream.SampleRate && (
-											<div className={css.infoRow}>
-												<span className={css.infoLabel}>Sample Rate</span>
-												<span className={css.infoValue}>{(audioStream.SampleRate / 1000).toFixed(1)} kHz</span>
-											</div>
-										)}
-									</SpottableDiv>
-								)}
-
-								{/* Subtitle Section */}
-								{subtitleStream && (
-									<SpottableDiv className={css.infoSection} spotlightId="info-subtitles">
-										<h3 className={css.infoHeader}>Subtitles</h3>
-										<div className={css.infoRow}>
-											<span className={css.infoLabel}>Track</span>
-											<span className={css.infoValue}>
-												{subtitleStream.DisplayTitle || subtitleStream.Language || 'Unknown'}
-											</span>
-										</div>
-										<div className={css.infoRow}>
-											<span className={css.infoLabel}>Format</span>
-											<span className={css.infoValue}>
-												{(subtitleStream.Codec || 'Unknown').toUpperCase()}
-											</span>
-										</div>
-										<div className={css.infoRow}>
-											<span className={css.infoLabel}>Type</span>
-											<span className={css.infoValue}>
-												{subtitleStream.IsExternal ? 'External' : 'Embedded'}
-											</span>
-										</div>
-									</SpottableDiv>
-								)}
-							</Scroller>
-							<p className={css.modalFooter}>Press BACK to close</p>
-						</div>
-					</div>
-				);
-			})()}
-
-			{/* Subtitle Offset Modal */}
-			<SubtitleOffsetOverlay
-				visible={activeModal === 'subtitleOffset'}
-				currentOffset={subtitleOffset}
-				onClose={closeModal}
-				onOffsetChange={handleSubtitleOffsetChange}
-			/>
-
-			{/* Subtitle Settings Modal */}
-			<SubtitleSettingsOverlay
-				visible={activeModal === 'subtitleSettings'}
-				onClose={closeModal}
 			/>
 		</div>
 	);
