@@ -85,7 +85,7 @@ try {
 
 	// Copy banner
 	console.log('\n Copying banner...');
-	const bannerSrc = path.join('resources', 'banner-dark.png');
+	const bannerSrc = path.join(APP_DIR, 'resources', 'banner-dark.png');
 	const bannerDest = path.join('dist', 'resources', 'banner-dark.png');
 	if (fs.existsSync(bannerSrc)) {
 		fs.mkdirSync(path.dirname(bannerDest), {recursive: true});

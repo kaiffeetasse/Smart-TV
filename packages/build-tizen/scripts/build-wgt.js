@@ -178,6 +178,17 @@ async function main() {
 	fs.mkdirSync(DIST, { recursive: true });
 	copyDir(path.join(APP_DIR, 'dist'), DIST);
 	success('Copied build output');
+
+	// Copy banner image
+	const bannerSrc = path.join(APP_DIR, 'resources', 'banner-dark.png');
+	const bannerDest = path.join(DIST, 'resources', 'banner-dark.png');
+	if (fs.existsSync(bannerSrc)) {
+		fs.mkdirSync(path.dirname(bannerDest), { recursive: true });
+		fs.copyFileSync(bannerSrc, bannerDest);
+		success('Copied banner image');
+	} else {
+		warn('banner-dark.png not found at ' + bannerSrc);
+	}
 	
 	// Step 2.5: Patch index.html to fix ilib XHR file:// issue on Tizen
 	log('Patching index.html for Tizen file:// compatibility...');
