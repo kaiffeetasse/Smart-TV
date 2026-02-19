@@ -516,6 +516,32 @@ export const fetchSubtitleData = async (subtitleStream) => {
 	}
 };
 
+const mapChapters = (chapters) => chapters.map((c, i) => ({
+	index: i,
+	name: c.Name || `Chapter ${i + 1}`,
+	startPositionTicks: c.StartPositionTicks,
+	imageTag: c.ImageTag
+}));
+
+/**
+ * Fetch chapters for an item. Chapters live on the Item object, not MediaSource.
+ */
+export const fetchItemChapters = async (itemId, item) => {
+	if (item?.Chapters?.length > 0) {
+		return mapChapters(item.Chapters);
+	}
+	try {
+		const api = item ? getApiForItem(item) : jellyfinApi.api;
+		const fullItem = await api.getItem(itemId);
+		if (fullItem?.Chapters?.length > 0) {
+			return mapChapters(fullItem.Chapters);
+		}
+	} catch (e) {
+		console.warn('[playback] Failed to fetch item chapters:', e.message);
+	}
+	return [];
+};
+
 export const getChapterImageUrl = (itemId, chapterIndex, width = 320) => {
 	const serverUrl = jellyfinApi.getServerUrl();
 	const apiKey = jellyfinApi.getApiKey();
@@ -874,6 +900,7 @@ export default {
 	getPlaybackInfoWithFallback,
 	getPlaybackUrl,
 	getSubtitleUrl,
+	fetchItemChapters,
 	getChapterImageUrl,
 	getTrickplayInfo,
 	getMediaSegments,
