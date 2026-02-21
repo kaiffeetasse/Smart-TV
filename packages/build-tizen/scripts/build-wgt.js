@@ -23,6 +23,11 @@ const isSigned = args.includes('--signed');
 const shouldInstall = args.includes('--install');
 const isDev = args.includes('--dev');  // Use --dev for debug builds
 
+// Samsung certificate signing configuration
+const SAMSUNG_CERT_PROFILE = process.env.TIZEN_SIGN_PROFILE || 'Moonfin';
+const SAMSUNG_CERT_DIR = path.join(process.env.HOME, 'SamsungCertificate', 'Moonfin');
+const TIZEN_PROFILES_XML = path.join(process.env.HOME, 'tizen-studio-data', 'profile', 'profiles.xml');
+
 // ANSI colors
 const green = (text) => `\x1b[32m${text}\x1b[0m`;
 const yellow = (text) => `\x1b[33m${text}\x1b[0m`;
@@ -299,21 +304,53 @@ async function main() {
 		log(`Removed ${f}`);
 	});
 	
-	// Step 7: Package WGT
-	log(`Packaging ${isSigned ? 'signed' : 'unsigned'} .wgt...`);
+	// Step 7: Verify Samsung certificate and package WGT
+	log('Verifying Samsung certificate...');
+	const authorP12 = path.join(SAMSUNG_CERT_DIR, 'author.p12');
+	const distributorP12 = path.join(SAMSUNG_CERT_DIR, 'distributor.p12');
+	
+	if (!fs.existsSync(authorP12) || !fs.existsSync(distributorP12)) {
+		warn('Samsung certificate files not found at: ' + SAMSUNG_CERT_DIR);
+		warn('Expected: author.p12 and distributor.p12');
+		warn('Please create a Samsung certificate via Tizen Studio Certificate Manager.');
+		if (isSigned) {
+			error('Cannot create signed build without Samsung certificates!');
+			process.exit(1);
+		}
+		warn('Falling back to unsigned build...');
+	} else {
+		success(`Found Samsung certificates in ${SAMSUNG_CERT_DIR}`);
+	}
+	
+	if (!fs.existsSync(TIZEN_PROFILES_XML)) {
+		warn('Tizen profiles.xml not found at: ' + TIZEN_PROFILES_XML);
+		if (isSigned) {
+			error('Cannot create signed build without profiles.xml!');
+			process.exit(1);
+		}
+	} else {
+		const profileContent = fs.readFileSync(TIZEN_PROFILES_XML, 'utf8');
+		if (profileContent.includes(`name="${SAMSUNG_CERT_PROFILE}"`)) {
+			success(`Signing profile "${SAMSUNG_CERT_PROFILE}" found in profiles.xml`);
+		} else {
+			warn(`Profile "${SAMSUNG_CERT_PROFILE}" not found in profiles.xml`);
+			warn('Available profiles can be managed via Tizen Studio Certificate Manager');
+		}
+	}
 	
 	const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 	const version = pkg.version || '0.0.0';
 	const wgtName = `Moonfin-v${version}.wgt`;
 	
+	log(`Packaging ${isSigned ? 'signed' : 'unsigned'} .wgt with profile "${SAMSUNG_CERT_PROFILE}"...`);
+	
 	let packageCmd;
-	const signProfile = process.env.TIZEN_SIGN_PROFILE;
-	if (isSigned || signProfile) {
-		// Use an explicit signing profile (from --signed flag or TIZEN_SIGN_PROFILE env var)
-		const profile = signProfile || 'default';
-		packageCmd = `"${tizenCLI}" package -t wgt --sign "${profile}" -- "${DIST}" -o "${REPO_ROOT}"`;
+	const hasCerts = fs.existsSync(authorP12) && fs.existsSync(distributorP12) && fs.existsSync(TIZEN_PROFILES_XML);
+	if (hasCerts) {
+		// Always sign with the Samsung certificate profile when certs are available
+		packageCmd = `"${tizenCLI}" package -t wgt --sign "${SAMSUNG_CERT_PROFILE}" -- "${DIST}" -o "${REPO_ROOT}"`;
 	} else {
-		// Package without explicit profile (uses active profile)
+		// Fallback: package without explicit profile
 		packageCmd = `"${tizenCLI}" package -t wgt -- "${DIST}" -o "${REPO_ROOT}"`;
 	}
 	
