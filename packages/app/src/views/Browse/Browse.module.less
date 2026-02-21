@@ -118,6 +118,40 @@
 	}
 }
 
+/* Trailer Preview */
+.trailerContainer {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 1;
+	pointer-events: none;
+	overflow: hidden;
+}
+
+.trailerVideo {
+	width: 100%;
+	height: 100%;
+	border: none;
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 0.8s ease;
+	transform: scale(1.15);
+	transform-origin: center center;
+	object-fit: cover;
+	background: transparent;
+}
+
+.trailerVisible {
+	opacity: 1;
+}
+
+.trailerActive .featuredBackdrop {
+	opacity: 0;
+	transition: opacity 0.8s ease;
+}
+
 .featuredContent {
 	position: absolute;
 	bottom: 80px;

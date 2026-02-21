@@ -47,6 +47,8 @@ const defaultSettings = {
 	featuredContentType: 'both',
 	featuredItemCount: 10,
 	showFeaturedBar: true,
+	featuredTrailerPreview: true,
+	featuredTrailerMuted: false,
 	unifiedLibraryMode: false,
 	useMoonfinPlugin: false,
 	mdblistEnabled: true,

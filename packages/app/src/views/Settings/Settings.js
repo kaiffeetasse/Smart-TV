@@ -905,6 +905,8 @@ const Settings = ({onBack, onLibrariesChanged}) => {
 					() => openOptionDialog('Item Count', FEATURED_ITEM_COUNT_OPTIONS, 'featuredItemCount'),
 					'setting-featuredItemCount'
 				)}
+				{renderToggleItem('Trailer Preview', 'Automatically play trailer previews in the featured carousel background', 'featuredTrailerPreview')}
+				{settings.featuredTrailerPreview && renderToggleItem('Mute Trailers', 'Mute trailer previews in the featured carousel', 'featuredTrailerMuted')}
 			</div>
 			<div className={css.settingsGroup}>
 				<h2>Screensaver</h2>

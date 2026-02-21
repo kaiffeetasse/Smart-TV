@@ -11,7 +11,8 @@ import MediaRow from '../../components/MediaRow';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import RatingsRow from '../../components/RatingsRow';
 import {formatDuration, getImageUrl, getBackdropId, getLogoUrl} from '../../utils/helpers';
-import {KEYS} from '../../utils/keys';
+import {KEYS, isBackKey} from '../../utils/keys';
+import {extractYouTubeIdFromUrl, fetchVideoStreamUrl} from '../../services/youtubeTrailer';
 
 import css from './Details.module.less';
 
@@ -135,6 +136,8 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, bac
 	const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState(-1);
 	const [showMediaInfo, setShowMediaInfo] = useState(false);
 	const [activeModal, setActiveModal] = useState(null);
+	const [trailerOverlay, setTrailerOverlay] = useState(null);
+	const [trailerStreamUrl, setTrailerStreamUrl] = useState(null);
 
 	// Refs
 	const pageScrollerRef = useRef(null);
@@ -337,8 +340,12 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, bac
 		if (item?.LocalTrailerCount > 0) {
 			onPlay?.(item, false, false, true);
 		} else if (item?.RemoteTrailers?.length > 0) {
-			const trailerUrl = item.RemoteTrailers[0].Url;
-			if (trailerUrl) {
+			const trailerUrl = item.RemoteTrailers[0].Url || '';
+			const videoId = extractYouTubeIdFromUrl(trailerUrl);
+			if (videoId) {
+				setTrailerOverlay(videoId);
+				window.requestAnimationFrame(() => Spotlight.focus('trailer-close-btn'));
+			} else if (trailerUrl) {
 				window.open(trailerUrl, '_blank');
 			}
 		}
@@ -383,6 +390,41 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, bac
 	const handleCloseMediaInfo = useCallback(() => setShowMediaInfo(false), []);
 	const handleOpenMediaInfo = useCallback(() => setShowMediaInfo(true), []);
 	const handleStopPropagation = useCallback((e) => e.stopPropagation(), []);
+
+	const handleCloseTrailer = useCallback(() => {
+		setTrailerOverlay(null);
+		setTrailerStreamUrl(null);
+	}, []);
+
+	const handleTrailerOverlayKeyDown = useCallback((e) => {
+		if (isBackKey(e)) {
+			e.preventDefault();
+			e.stopPropagation();
+			setTrailerOverlay(null);
+			setTrailerStreamUrl(null);
+		}
+	}, []);
+
+	useEffect(() => {
+		if (!trailerOverlay) {
+			setTrailerStreamUrl(null);
+			return;
+		}
+		let cancelled = false;
+
+		const resolveStream = async () => {
+			const url = await fetchVideoStreamUrl(trailerOverlay, true);
+			if (cancelled) return;
+			if (url) {
+				setTrailerStreamUrl(url);
+			} else {
+				setTrailerOverlay(null);
+			}
+		};
+
+		resolveStream();
+		return () => { cancelled = true; };
+	}, [trailerOverlay]);
 
 	const openModal = useCallback((modal) => {
 		setActiveModal(modal);
@@ -1648,6 +1690,31 @@ const handleSectionKeyDown = useCallback((ev) => {
 			)}
 
 			{renderMediaInfoModal()}
+
+			{trailerOverlay && (
+				<div className={css.trailerOverlay} onClick={handleCloseTrailer} onKeyDown={handleTrailerOverlayKeyDown}>
+					<SpottableButton className={css.trailerCloseBtn} onClick={handleCloseTrailer} spotlightId="trailer-close-btn">
+						<svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
+							<path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+						</svg>
+					</SpottableButton>
+					<div className={css.trailerIframeWrap} onClick={handleStopPropagation}>
+						{trailerStreamUrl ? (
+							<video
+								className={css.trailerIframe}
+								src={trailerStreamUrl}
+								autoPlay
+								controls
+								playsInline
+							/>
+						) : (
+							<div className={css.trailerLoading}>
+								Loading trailer...
+							</div>
+						)}
+					</div>
+				</div>
+			)}
 		</div>
 	);
 };

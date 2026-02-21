@@ -234,7 +234,7 @@ export const api = {
 			default:
 				includeTypes = 'Movie,Series';
 		}
-		return request(`/Users/${currentUser}/Items?IncludeItemTypes=${includeTypes}&Recursive=true&SortBy=Random&Limit=${limit}&Fields=PrimaryImageAspectRatio,Overview,Genres,ProviderIds&HasBackdrop=true&ExcludeItemTypes=BoxSet`);
+		return request(`/Users/${currentUser}/Items?IncludeItemTypes=${includeTypes}&Recursive=true&SortBy=Random&Limit=${limit}&Fields=PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers&HasBackdrop=true&ExcludeItemTypes=BoxSet`);
 	},
 
 	// Get all movies and series for genres page

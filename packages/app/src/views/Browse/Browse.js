@@ -10,6 +10,7 @@ import {getFromStorage, saveToStorage} from '../../services/storage';
 import * as connectionPool from '../../services/connectionPool';
 import RatingsRow from '../../components/RatingsRow';
 import {KEYS} from '../../utils/keys';
+import {extractYouTubeId, fetchSponsorSegments, fetchVideoStreamUrl, getTrailerStartTime} from '../../services/youtubeTrailer';
 
 import css from './Browse.module.less';
 
@@ -20,6 +21,7 @@ const FEATURED_GENRES_LIMIT = 3;
 const DETAIL_GENRES_LIMIT = 2;
 const TRANSITION_DELAY_MS = 450;
 const PRELOAD_ADJACENT_SLIDES = 2;
+const TRAILER_REVEAL_MS = 4000;
 
 // Cache TTL in milliseconds (5 minutes for volatile data, 30 minutes for libraries)
 const CACHE_TTL_VOLATILE = 5 * 60 * 1000;
@@ -58,6 +60,7 @@ const Browse = ({
 	const [featuredFocused, setFeaturedFocused] = useState(false);
 	const [focusedItem, setFocusedItem] = useState(null);
 	const [allRowData, setAllRowData] = useState([]);
+	const [trailerActive, setTrailerActive] = useState(false);
 	const mainContentRef = useRef(null);
 	const backdropTimeoutRef = useRef(null);
 	const backdropFadeIntervalRef = useRef(null);
@@ -66,6 +69,11 @@ const Browse = ({
 	const focusItemTimeoutRef = useRef(null);
 	const lastFocusedRowRef = useRef(null);
 	const wasVisibleRef = useRef(true);
+	const trailerContainerRef = useRef(null);
+	const trailerStateRef = useRef('idle');
+	const trailerVideoIdRef = useRef(null);
+	const trailerRevealTimerRef = useRef(null);
+	const sponsorSegmentsRef = useRef([]);
 
 	// Helper to get the correct server URL for an item (supports cross-server items)
 	const getItemServerUrl = useCallback((item) => {
@@ -718,14 +726,14 @@ const Browse = ({
 
 	useEffect(() => {
 		const carouselSpeed = settings.carouselSpeed || 8000;
-		if (settings.showFeaturedBar === false || featuredItems.length <= 1 || !featuredFocused || browseMode !== 'featured' || carouselSpeed === 0) return;
+		if (settings.showFeaturedBar === false || featuredItems.length <= 1 || !featuredFocused || browseMode !== 'featured' || carouselSpeed === 0 || trailerActive) return;
 
 		const interval = setInterval(() => {
 			setCurrentFeaturedIndex((prev) => (prev + 1) % featuredItems.length);
 		}, carouselSpeed);
 
 		return () => clearInterval(interval);
-	}, [featuredItems.length, featuredFocused, browseMode, settings.carouselSpeed, settings.showFeaturedBar]);
+	}, [featuredItems.length, featuredFocused, browseMode, settings.carouselSpeed, settings.showFeaturedBar, trailerActive]);
 
 	const crossFadeBackdrop = useCallback(() => {
 		if (backdropFadeIntervalRef.current) {
@@ -915,7 +923,133 @@ const Browse = ({
 		return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
 	};
 
+	const stopTrailer = useCallback(() => {
+		if (trailerRevealTimerRef.current) {
+			clearTimeout(trailerRevealTimerRef.current);
+			trailerRevealTimerRef.current = null;
+		}
+		setTrailerActive(false);
+		if (trailerContainerRef.current) {
+			const video = trailerContainerRef.current.querySelector('video');
+			if (video) {
+				try { video.pause(); video.src = ''; video.load(); } catch (e) { /* ignore */ }
+			}
+			trailerContainerRef.current.innerHTML = '';
+		}
+		trailerStateRef.current = 'idle';
+		trailerVideoIdRef.current = null;
+		sponsorSegmentsRef.current = [];
+	}, []);
+
+	const startTrailerPreview = useCallback(async (videoId) => {
+		trailerStateRef.current = 'resolving';
+		trailerVideoIdRef.current = videoId;
+
+		let segments = [];
+		let streamUrl = null;
+		try {
+			const results = await Promise.all([
+				fetchSponsorSegments(videoId).catch(() => []),
+				fetchVideoStreamUrl(videoId, false)
+			]);
+			segments = results[0];
+			streamUrl = results[1];
+		} catch (e) { /* ignore */ }
+
+		if (trailerStateRef.current !== 'resolving' || trailerVideoIdRef.current !== videoId) return;
+		if (!streamUrl) {
+			trailerStateRef.current = 'unavailable';
+			return;
+		}
+		sponsorSegmentsRef.current = segments;
+
+		const startTime = getTrailerStartTime(segments);
+		const container = trailerContainerRef.current;
+		if (!container) return;
+
+		const isMuted = settings.featuredTrailerMuted;
+		const video = document.createElement('video');
+		video.className = css.trailerVideo;
+		video.muted = isMuted;
+		video.volume = isMuted ? 0 : 1;
+		video.autoplay = true;
+		video.playsInline = true;
+		video.controls = false;
+		if (startTime > 0) video.currentTime = startTime;
+
+		container.innerHTML = '';
+		container.appendChild(video);
+
+		let skipInterval = null;
+		if (segments.length > 0) {
+			skipInterval = setInterval(() => {
+				if (!video || video.paused) return;
+				const t = video.currentTime;
+				for (let i = 0; i < segments.length; i++) {
+					if (t >= segments[i].start && t < segments[i].end - 0.5) {
+						video.currentTime = segments[i].end;
+						break;
+					}
+				}
+			}, 500);
+		}
+
+		video.addEventListener('playing', () => {
+			if (trailerStateRef.current === 'resolving' && trailerVideoIdRef.current === videoId) {
+				trailerStateRef.current = 'playing';
+				trailerRevealTimerRef.current = setTimeout(() => {
+					if (trailerStateRef.current === 'playing' && trailerVideoIdRef.current === videoId) {
+						video.classList.add(css.trailerVisible);
+						setTrailerActive(true);
+					}
+				}, TRAILER_REVEAL_MS);
+			}
+		});
+
+		video.addEventListener('ended', () => {
+			if (skipInterval) clearInterval(skipInterval);
+			stopTrailer();
+		});
+
+		video.addEventListener('error', () => {
+			if (skipInterval) clearInterval(skipInterval);
+			trailerStateRef.current = 'unavailable';
+			container.innerHTML = '';
+		});
+
+		video.src = streamUrl;
+		const playPromise = video.play();
+		if (playPromise) playPromise.catch(() => {});
+	}, [stopTrailer, settings.featuredTrailerMuted]);
+
 	const currentFeatured = featuredItems[currentFeaturedIndex];
+
+	useEffect(() => {
+		if (!settings.featuredTrailerPreview || browseMode !== 'featured' || !currentFeatured) {
+			stopTrailer();
+			return;
+		}
+		stopTrailer();
+		const videoId = extractYouTubeId(currentFeatured);
+		if (videoId) {
+			const timer = setTimeout(() => {
+				startTrailerPreview(videoId);
+			}, 5000);
+			return () => clearTimeout(timer);
+		}
+	}, [currentFeaturedIndex, currentFeatured, browseMode, settings.featuredTrailerPreview, startTrailerPreview, stopTrailer]);
+
+	useEffect(() => {
+		const handleVisibility = () => {
+			if (document.hidden) stopTrailer();
+		};
+		document.addEventListener('visibilitychange', handleVisibility);
+		return () => document.removeEventListener('visibilitychange', handleVisibility);
+	}, [stopTrailer]);
+
+	useEffect(() => {
+		return () => stopTrailer();
+	}, [stopTrailer]);
 
 	if (isLoading) {
 		return (
@@ -969,7 +1103,7 @@ const Browse = ({
 						className={`${css.featuredBanner} ${browseMode === 'rows' ? css.featuredHidden : ''}`}
 					>
 						<SpottableDiv
-							className={css.featuredInner}
+							className={`${css.featuredInner} ${trailerActive ? css.trailerActive : ''}`}
 							spotlightId="featured-banner"
 							onClick={handleFeaturedClick}
 							onKeyDown={handleFeaturedKeyDown}
@@ -982,6 +1116,8 @@ const Browse = ({
 									alt=""
 								/>
 							</div>
+
+							<div className={css.trailerContainer} ref={trailerContainerRef} />
 
 							{featuredItems.length > 1 && (
 								<>
