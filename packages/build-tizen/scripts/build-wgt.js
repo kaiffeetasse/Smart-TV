@@ -6,6 +6,11 @@
  *   npm run build          - Build unsigned .wgt (for development)
  *   npm run build:signed   - Build signed .wgt (for store/production)
  *   npm run install-tv     - Build and install to connected TV
+ *
+ * Flags:
+ *   --tizen24              - Target Tizen 2.4 (2016 K-series, Chromium ~47)
+ *                            Applies CSS compatibility patches, strips Tizen 4+
+ *                            service block and metadata from config.xml
  */
 
 const { execSync, spawn } = require('child_process');
@@ -22,6 +27,7 @@ const args = process.argv.slice(2);
 const isSigned = args.includes('--signed');
 const shouldInstall = args.includes('--install');
 const isDev = args.includes('--dev');  // Use --dev for debug builds
+const isTizen24 = args.includes('--tizen24');  // Target Tizen 2.4 (2016 K-series, Chromium ~47)
 
 // Samsung certificate signing configuration
 const SAMSUNG_CERT_PROFILE = process.env.TIZEN_SIGN_PROFILE || 'Moonfin';
@@ -151,6 +157,7 @@ function findDir(base, target) {
 async function main() {
 	console.log('\n' + cyan('═'.repeat(50)));
 	console.log(cyan('  Moonfin Tizen Build'));
+	if (isTizen24) console.log(cyan('  Target: Tizen 2.4 (2016 K-series)'));
 	console.log(cyan('═'.repeat(50)) + '\n');
 	
 	// Step 1: Find Tizen CLI
@@ -163,7 +170,21 @@ async function main() {
 	}
 	success(`Found Tizen CLI: ${tizenCLI}`);
 	
-	// Step 2: Build Enact app
+	// Step 2: Apply Tizen 2.4 compatibility patches (only when --tizen24 flag is set)
+	if (isTizen24) {
+		log('Applying Tizen 2.4 compatibility patches...');
+		try {
+			require(path.join(REPO_ROOT, 'scripts', 'patch-enact-tizen24.js'));
+			success('Tizen 2.4 patches applied');
+		} catch (e) {
+			error('Failed to apply Tizen 2.4 patches: ' + e.message);
+			process.exit(1);
+		}
+	} else {
+		log('Skipping Tizen 2.4 patches (use --tizen24 to enable)');
+	}
+
+	// Step 3: Build Enact app
 	log(`Building Enact app (${isDev ? 'development' : 'production'})...`);
 	const packCmd = isDev ? 'npx enact pack' : 'npx enact pack -p';
 	const browserslistConfig = path.join(ROOT, '.browserslistrc');
@@ -253,14 +274,37 @@ async function main() {
 	copyFiles(TIZEN_DIR, DIST);
 	success('Copied config.xml and icons');
 	
-	// Step 3.5: Copy Smart Hub Preview background service
-	const serviceDir = path.join(TIZEN_DIR, 'service');
-	const distServiceDir = path.join(DIST, 'service');
-	if (fs.existsSync(serviceDir)) {
-		log('Copying Smart Hub Preview service...');
-		if (!fs.existsSync(distServiceDir)) fs.mkdirSync(distServiceDir, { recursive: true });
-		copyDir(serviceDir, distServiceDir);
-		success('Copied Smart Hub Preview service');
+	// Step 3.5: Copy Smart Hub Preview background service (Tizen 4+ only)
+	if (isTizen24) {
+		log('Skipping Smart Hub Preview service (not supported on Tizen 2.4)');
+	} else {
+		const serviceDir = path.join(TIZEN_DIR, 'service');
+		const distServiceDir = path.join(DIST, 'service');
+		if (fs.existsSync(serviceDir)) {
+			log('Copying Smart Hub Preview service...');
+			if (!fs.existsSync(distServiceDir)) fs.mkdirSync(distServiceDir, { recursive: true });
+			copyDir(serviceDir, distServiceDir);
+			success('Copied Smart Hub Preview service');
+		}
+	}
+
+	// Step 3.6: Strip Tizen 4+ elements from config.xml for Tizen 2.4
+	if (isTizen24) {
+		log('Stripping Tizen 4+ elements from config.xml...');
+		const configPath = path.join(DIST, 'config.xml');
+		if (fs.existsSync(configPath)) {
+			let configXml = fs.readFileSync(configPath, 'utf8');
+			// Remove <tizen:service> block (Smart Hub Preview — Tizen 4+)
+			configXml = configXml.replace(/\s*<!-- Remove the tizen:service block[^>]*-->\s*/g, '\n');
+			configXml = configXml.replace(/\s*<tizen:service[\s\S]*?<\/tizen:service>/g, '');
+			// Remove Smart Hub Preview metadata (Tizen 4+)
+			configXml = configXml.replace(/\s*<!-- Remove the next two[^>]*-->\s*/g, '\n');
+			configXml = configXml.replace(/\s*<tizen:metadata[^>]*use\.preview[^>]*\/>/g, '');
+			// Remove background-support from tizen:setting (not supported on 2.4)
+			configXml = configXml.replace(/ background-support="enable"/g, '');
+			fs.writeFileSync(configPath, configXml, 'utf8');
+			success('Stripped Tizen 4+ elements from config.xml');
+		}
 	}
 	
 	// Step 4: Clean up unnecessary files to reduce package size

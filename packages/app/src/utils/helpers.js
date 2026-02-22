@@ -17,12 +17,13 @@ export const formatDate = (dateString) => {
 
 export const getImageUrl = (serverUrl, itemId, imageType = 'Primary', options = {}) => {
 	if (!serverUrl || !itemId) return null;
-	const params = new URLSearchParams();
-	if (options.maxWidth) params.set('maxWidth', options.maxWidth);
-	if (options.maxHeight) params.set('maxHeight', options.maxHeight);
-	if (options.quality) params.set('quality', options.quality);
-	if (options.tag) params.set('tag', options.tag);
-	const queryString = params.toString();
+	// Build query string manually for Chromium 47 compat (no URLSearchParams)
+	const queryParts = [];
+	if (options.maxWidth) queryParts.push('maxWidth=' + encodeURIComponent(options.maxWidth));
+	if (options.maxHeight) queryParts.push('maxHeight=' + encodeURIComponent(options.maxHeight));
+	if (options.quality) queryParts.push('quality=' + encodeURIComponent(options.quality));
+	if (options.tag) queryParts.push('tag=' + encodeURIComponent(options.tag));
+	const queryString = queryParts.join('&');
 	return `${serverUrl}/Items/${itemId}/Images/${imageType}${queryString ? '?' + queryString : ''}`;
 };
 

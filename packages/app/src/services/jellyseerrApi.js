@@ -50,7 +50,12 @@ const responseBody = await response.text();
 return {
 success: true,
 status: response.status,
-headers: Object.fromEntries(response.headers.entries()),
+headers: (function () {
+					// Build headers object manually for Chromium 47 compat (no Headers.entries())
+					var h = {};
+					response.headers.forEach(function (value, key) { h[key] = value; });
+					return h;
+				})(),
 body: responseBody
 };
 } catch (error) {

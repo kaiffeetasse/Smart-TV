@@ -158,21 +158,23 @@ const buildPlaybackUrl = (itemId, mediaSource, playSessionId, playMethod, creden
 	});
 
 	if (playMethod === PlayMethod.DirectPlay) {
-		const params = new URLSearchParams();
-		params.append('Static', 'true');
-		params.append('mediaSourceId', mediaSource.Id);
-		params.append('deviceId', deviceId);
-		params.append('api_key', apiKey);
+		// Build query string manually for Chromium 47 compat (no URLSearchParams)
+		const queryParts = [
+			'Static=true',
+			'mediaSourceId=' + encodeURIComponent(mediaSource.Id),
+			'deviceId=' + encodeURIComponent(deviceId),
+			'api_key=' + encodeURIComponent(apiKey)
+		];
 		// Include ETag if available
 		if (mediaSource.ETag) {
-			params.append('Tag', mediaSource.ETag);
+			queryParts.push('Tag=' + encodeURIComponent(mediaSource.ETag));
 		}
 		// Include LiveStreamId if available
 		if (mediaSource.LiveStreamId) {
-			params.append('LiveStreamId', mediaSource.LiveStreamId);
+			queryParts.push('LiveStreamId=' + encodeURIComponent(mediaSource.LiveStreamId));
 		}
 		// Include container extension for proper MIME type detection
-		const url = `${serverUrl}/${streamType}/${itemId}/stream.${container}?${params.toString()}`;
+		const url = `${serverUrl}/${streamType}/${itemId}/stream.${container}?${queryParts.join('&')}`;
 		console.log('[playback] DirectPlay URL:', url);
 		return url;
 	}
