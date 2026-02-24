@@ -1017,6 +1017,7 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 			executeDeferredSeek();
 			setFocusRow('top');
 			setIsSeeking(false);
+			window.requestAnimationFrame(() => Spotlight.focus('play-pause-btn'));
 		} else if (e.key === 'ArrowDown' || e.keyCode === 40) {
 			e.preventDefault();
 			executeDeferredSeek();
@@ -1196,7 +1197,10 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 					e.preventDefault();
 					setFocusRow(prev => {
 						if (prev === 'bottom') return 'progress';
-						if (prev === 'progress') return 'top';
+						if (prev === 'progress') {
+							window.requestAnimationFrame(() => Spotlight.focus('play-pause-btn'));
+							return 'top';
+						}
 						return 'top';
 					});
 					return;

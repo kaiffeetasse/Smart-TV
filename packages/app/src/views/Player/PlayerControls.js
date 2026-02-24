@@ -225,8 +225,7 @@ const PlayerControls = ({
 								onClick={btn.disabled ? undefined : handleControlButtonClick}
 								aria-label={btn.label}
 								aria-disabled={btn.disabled}
-								spotlightDisabled={focusRow !== 'top'}
-							>
+								spotlightDisabled={focusRow !== 'top'}							spotlightId={btn.id === 'playPause' ? 'play-pause-btn' : undefined}							>
 								{btn.icon}
 							</SpottableButton>
 						))}

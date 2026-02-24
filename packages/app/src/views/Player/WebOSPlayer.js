@@ -1021,6 +1021,7 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 			e.preventDefault();
 			setFocusRow('top');
 			setIsSeeking(false);
+			window.requestAnimationFrame(() => Spotlight.focus('play-pause-btn'));
 		} else if (e.key === 'ArrowDown' || e.keyCode === 40) {
 			e.preventDefault();
 			setFocusRow('bottom');
@@ -1155,8 +1156,11 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 					showControls();
 					setFocusRow(prev => {
 						if (prev === 'bottom') return 'progress';
-						if (prev === 'progress') return 'top';
-						return 'top'; // Already at top, stay there
+						if (prev === 'progress') {
+							window.requestAnimationFrame(() => Spotlight.focus('play-pause-btn'));
+							return 'top';
+						}
+						return 'top';
 					});
 					return;
 				}
