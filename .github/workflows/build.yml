@@ -1,0 +1,60 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-webos:
+    name: Build webOS (IPK)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --force
+
+      - name: Build webOS
+        run: npm run build:webos
+
+      - name: Upload webOS artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: moonfin_webos_ipk
+          path: packages/build-webos/build/org.moonfin.webos_*_all.ipk
+
+  build-tizen:
+    name: Build Tizen (WGT)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --force
+
+      - name: Build Tizen
+        run: npm run build:tizen
+
+      - name: Upload Tizen artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: moonfin_tizen_wgt
+          path: packages/build-tizen/*.wgt
