@@ -284,7 +284,7 @@ const Search = ({onSelectItem, onSelectPerson}) => {
 
 	const renderJellyseerrCard = useCallback((item, index, rowId) => {
 		const imageUrl = item.posterPath
-			? `https://image.tmdb.org/t/p/w300${item.posterPath}`
+			? jellyseerrApi.getImageUrl(item.posterPath, 'w300')
 			: null;
 		const year = item.releaseDate
 			? new Date(item.releaseDate).getFullYear()

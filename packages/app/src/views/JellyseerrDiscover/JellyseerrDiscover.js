@@ -117,7 +117,7 @@ const GenreCard = memo(function GenreCard({genre, mediaType, onSelect, onFocus})
 });
 
 const NetworkCard = memo(function NetworkCard({network, onSelect}) {
-	const logoUrl = `http://image.tmdb.org/t/p/w185/${network.logo}`;
+	const logoUrl = jellyseerrApi.getImageUrl('/' + network.logo, 'w185');
 
 	const handleClick = useCallback(() => {
 		onSelect?.(network.id, network.name);
@@ -133,7 +133,7 @@ const NetworkCard = memo(function NetworkCard({network, onSelect}) {
 });
 
 const StudioCard = memo(function StudioCard({studio, onSelect}) {
-	const logoUrl = `http://image.tmdb.org/t/p/w185/${studio.logo}`;
+	const logoUrl = jellyseerrApi.getImageUrl('/' + studio.logo, 'w185');
 
 	const handleClick = useCallback(() => {
 		onSelect?.(studio.id, studio.name);
@@ -503,9 +503,9 @@ const JellyseerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSel
 		backdropTimeoutRef.current = setTimeout(() => {
 			if (item?.backdrop_path || item?.backdropPath) {
 				const path = item.backdrop_path || item.backdropPath;
-				setBackdropUrl(jellyseerrApi.getImageUrl(path, 'original'));
+				setBackdropUrl(jellyseerrApi.getImageUrl(path, 'w1280'));
 			} else if (item?.backdrops?.length > 0) {
-				setBackdropUrl(jellyseerrApi.getImageUrl(item.backdrops[0], 'original'));
+				setBackdropUrl(jellyseerrApi.getImageUrl(item.backdrops[0], 'w1280'));
 			}
 		}, 150);
 	}, []);
@@ -593,11 +593,12 @@ const JellyseerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSel
 		<div className={css.container}>
 			<div className={css.backdrop}>
 				{backdropUrl && (
-					<img
+					<div
 						className={css.backdropImage}
-						src={backdropUrl}
-						alt=""
-						style={{filter: settings.backdropBlurHome > 0 ? `blur(${settings.backdropBlurHome}px)` : 'none'}}
+						style={{
+							backgroundImage: `url(${backdropUrl})`,
+							filter: settings.backdropBlurHome > 0 ? `blur(${settings.backdropBlurHome}px)` : 'none'
+						}}
 					/>
 				)}
 				<div className={css.backdropOverlay} />

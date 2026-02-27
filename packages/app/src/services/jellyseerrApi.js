@@ -1,9 +1,15 @@
+import {isWebOS} from '../platform';
+
 let jellyseerrUrl = null;
 let userId = null;
 
 let moonfinMode = false;
 let jellyfinServerUrl = null;
 let jellyfinAccessToken = null;
+
+// webOS 4's outdated SSL certs can't validate image.tmdb.org over HTTPS,
+// so use HTTP there. Tizen works fine with HTTPS.
+const _useHttp = isWebOS();
 
 export const setConfig = (url, user) => {
 jellyseerrUrl = url?.replace(/\/+$/, '');
@@ -637,7 +643,8 @@ return getTv(tmdbId);
 
 export const getImageUrl = (path, size = 'w500') => {
 if (!path) return null;
-return `https://image.tmdb.org/t/p/${size}${path}`;
+const proto = _useHttp ? 'http' : 'https';
+return `${proto}://image.tmdb.org/t/p/${size}${path}`;
 };
 
 export const proxyImage = async (imageUrl) => {

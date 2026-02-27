@@ -365,6 +365,19 @@ const AppContent = (props) => {
 	}, [api, navigateTo, settings.shuffleContentType, unifiedMode]);
 
 	const handleSelectItem = useCallback((item) => {
+		if (item.isJellyseerr) {
+			const type = item.mediaType || item.media_type || (item.title ? 'movie' : 'tv');
+			const jellyseerrMapped = {mediaId: item.id || item.Id, mediaType: type};
+			if (panelIndex === PANELS.JELLYSEERR_DETAILS && jellyseerrItem) {
+				jellyseerrItemStackRef.current.push(jellyseerrItem);
+				setJellyseerrItem(jellyseerrMapped);
+			} else {
+				jellyseerrItemStackRef.current = [];
+				setJellyseerrItem(jellyseerrMapped);
+				navigateTo(PANELS.JELLYSEERR_DETAILS);
+			}
+			return;
+		}
 		if (item.Type === 'Photo') {
 			setPhotoViewerItem(item);
 			return;
@@ -382,7 +395,7 @@ const AppContent = (props) => {
 			setSelectedItem(item);
 			navigateTo(PANELS.DETAILS);
 		}
-	}, [navigateTo, panelIndex, selectedItem]);
+	}, [navigateTo, panelIndex, selectedItem, jellyseerrItem]);
 
 	const handleViewPhoto = useCallback((item, siblings) => {
 		setPhotoViewerItem(item);
@@ -544,12 +557,20 @@ const AppContent = (props) => {
 	}, []);
 
 	const handleSelectJellyseerrItem = useCallback((item) => {
+		// Normalize: ensure mediaId and mediaType are set
+		const normalized = item.mediaId
+			? item
+			: {
+				...item,
+				mediaId: item.id,
+				mediaType: item.mediaType || item.media_type || (item.title ? 'movie' : 'tv')
+			};
 		if (panelIndex === PANELS.JELLYSEERR_DETAILS && jellyseerrItem) {
 			jellyseerrItemStackRef.current.push(jellyseerrItem);
-			setJellyseerrItem(item);
+			setJellyseerrItem(normalized);
 		} else {
 			jellyseerrItemStackRef.current = [];
-			setJellyseerrItem(item);
+			setJellyseerrItem(normalized);
 			navigateTo(PANELS.JELLYSEERR_DETAILS);
 		}
 	}, [navigateTo, panelIndex, jellyseerrItem]);

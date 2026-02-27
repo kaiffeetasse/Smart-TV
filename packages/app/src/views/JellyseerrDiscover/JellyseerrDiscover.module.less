@@ -26,11 +26,12 @@
 	left: 0;
 	width: 100%;
 	height: 100%;
-	object-fit: cover;
-	transform: scale(1.1) translateZ(0);
+	background-size: cover;
+	background-position: center;
+	background-repeat: no-repeat;
+	transform: scale(1.1);
 	opacity: 1;
 	transition: opacity 0.5s ease;
-	will-change: opacity;
 }
 
 .backdropOverlay {
@@ -354,8 +355,8 @@
 // Genre card - landscape style (384x216)
 .genreCard {
 	flex: 0 0 auto;
-	width: 384px;
-	height: 216px;
+	width: 280px;
+	height: 160px;
 	cursor: pointer;
 	transition: transform 0.25s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.25s ease;
 	outline: none;

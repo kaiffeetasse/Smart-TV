@@ -1150,7 +1150,7 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onSelectP
 		? jellyseerrApi.getImageUrl(details.posterPath, 'w500')
 		: null;
 	const backdropUrl = details.backdropPath
-		? jellyseerrApi.getImageUrl(details.backdropPath, 'original')
+		? jellyseerrApi.getImageUrl(details.backdropPath, 'w1280')
 		: null;
 	const title = details.title || details.name;
 	const year = details.releaseDate
