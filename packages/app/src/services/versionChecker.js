@@ -1,14 +1,16 @@
 /**
  * Version Checker Service
  * Checks GitHub releases API for newer versions with 24-hour cooldown
- * and version dismissal capability.
+ * and version dismissal capability. Only notifies when a release contains
+ * the platform-specific asset (.ipk for webOS, .wgt for Tizen).
  */
 
 import {getFromStorage, saveToStorage} from './storage';
+import {isWebOS, isTizen} from '../platform';
 import packageJson from '../../package.json';
 const APP_VERSION = packageJson.version;
 
-const GITHUB_API_URL = 'https://api.github.com/repos/Moonfin-Client/WebOS/releases/latest';
+const GITHUB_RELEASES_URL = 'https://api.github.com/repos/Moonfin-Client/Smart-TV/releases';
 const CHECK_COOLDOWN_HOURS = 24;
 const STORAGE_KEY_LAST_CHECK = 'version_last_check';
 const STORAGE_KEY_DISMISSED_VERSION = 'version_dismissed';
@@ -117,15 +119,38 @@ export const clearVersionCache = async () => {
 };
 
 /**
- * Fetch latest release info from GitHub
- * @returns {Promise<Object|null>} Release info object or null
+ * Get the expected asset file extension for this platform
+ * @returns {string} '.ipk' for webOS, '.wgt' for Tizen
+ */
+const getPlatformAssetExtension = () => {
+	if (isWebOS()) return '.ipk';
+	if (isTizen()) return '.wgt';
+	return '';
+};
+
+/**
+ * Check if a release has an asset matching this platform
+ * @param {Object} release
+ * @returns {boolean}
+ */
+const releaseHasPlatformAsset = (release) => {
+	const ext = getPlatformAssetExtension();
+	if (!ext) return true; // unknown platform, don't filter
+	const assets = release.assets || [];
+	return assets.some(a => a.name?.toLowerCase().endsWith(ext));
+};
+
+/**
+ * Fetch the latest release that contains a platform-specific asset.
+ * Walks recent releases (up to 10) to find one with an .ipk or .wgt file.
+ * @returns {Promise<Object|null>}
  */
 const fetchLatestRelease = async () => {
 	try {
-		const response = await fetch(GITHUB_API_URL, {
+		const response = await fetch(`${GITHUB_RELEASES_URL}?per_page=10`, {
 			headers: {
 				'Accept': 'application/vnd.github+json',
-				'User-Agent': 'Moonfin-webOS-Client'
+				'User-Agent': 'Moonfin-Client'
 			}
 		});
 
@@ -133,7 +158,18 @@ const fetchLatestRelease = async () => {
 			throw new Error(`HTTP ${response.status}`);
 		}
 
-		return await response.json();
+		const releases = await response.json();
+		if (!Array.isArray(releases)) return null;
+
+		// Find the first non-draft, non-prerelease release with a matching asset
+		for (const release of releases) {
+			if (release.draft || release.prerelease) continue;
+			if (releaseHasPlatformAsset(release)) {
+				return release;
+			}
+		}
+
+		return null;
 	} catch (e) {
 		console.warn('[VERSION] Failed to fetch release info:', e);
 		return null;
