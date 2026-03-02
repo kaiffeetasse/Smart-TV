@@ -366,6 +366,11 @@ const Search = ({onSelectItem, onSelectPerson}) => {
 					) : (
 						<div className={css.cardPlaceholder}>{isPerson ? '👤' : isAlbum || isSong ? '🎵' : isArtist ? '🎤' : '🎬'}</div>
 					)}
+					{item.UserData?.Played && (
+						<div className={css.watchedBadge}>
+							<svg viewBox="0 0 24 24"><path fill="white" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+						</div>
+					)}
 				</div>
 				<div className={css.cardInfo}>
 					<div className={css.cardTitle}>{item.Name}</div>

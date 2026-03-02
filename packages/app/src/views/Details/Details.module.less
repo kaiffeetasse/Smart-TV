@@ -137,6 +137,33 @@
 	}
 }
 
+/* Poster overlay badges */
+.posterBadgeWatched {
+	@import '../../styles/mixins.less';
+	.watched-badge(28px, 16px);
+	z-index: 2;
+}
+
+.posterBadgeFavorite {
+	position: absolute;
+	top: 8px;
+	left: 8px;
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	background: rgba(0, 0, 0, 0.6);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 2;
+
+	svg {
+		width: 18px;
+		height: 18px;
+		fill: #ff4081;
+	}
+}
+
 /* ============================================
    Episode Header
    ============================================ */
@@ -615,6 +642,25 @@
 	}
 }
 
+.favoriteBadge {
+	position: absolute;
+	top: 8px;
+	left: 8px;
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	background: rgba(0, 0, 0, 0.6);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	svg {
+		width: 18px;
+		height: 18px;
+		fill: #ff4081;
+	}
+}
+
 .unplayedCount {
 	position: absolute;
 	top: 8px;
@@ -762,6 +808,7 @@
 .seasonDetailPoster {
 	flex-shrink: 0;
 	width: 220px;
+	position: relative;
 
 	img {
 		width: 100%;

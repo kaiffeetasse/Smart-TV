@@ -2,25 +2,43 @@
 // webOS 3.x-4.x use older Chromium that doesn't support flexbox gap
 // These use margin-based spacing which works everywhere
 
-// For flex rows (items laid out horizontally)
 .flex-row-gap(@size) {
 	> * + * {
 		margin-left: @size;
 	}
 }
 
-// For flex columns (items laid out vertically)  
 .flex-col-gap(@size) {
 	> * + * {
 		margin-top: @size;
 	}
 }
 
-// For grid-like flex layouts (wrap enabled)
 .flex-gap(@size) {
 	margin: -(@size / 2);
 	
 	> * {
 		margin: (@size / 2);
+	}
+}
+
+.watched-badge(@size: 26px, @icon-size: 15px) {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	width: @size;
+	height: @size;
+	background: rgba(0, 164, 220, 0.9);
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 5;
+	pointer-events: none;
+
+	svg {
+		width: @icon-size;
+		height: @icon-size;
+		fill: white;
 	}
 }
