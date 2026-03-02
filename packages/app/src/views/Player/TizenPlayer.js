@@ -141,7 +141,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			setCurrentSubtitleText(foundSubtitle);
 		}
 
-		checkSegments(ticks);
+		checkSegments(ticks); // eslint-disable-line no-use-before-define
 	};
 
 	const startTimeUpdatePolling = useCallback(() => {
@@ -315,7 +315,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const loadMedia = async () => {
 			setIsLoading(true);
 			setError(null);
-			resetPopups();
+			resetPopups(); // eslint-disable-line no-use-before-define
 
 			// Stop any previous playback
 			stopTimeUpdatePolling();
@@ -597,7 +597,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			cleanupAVPlay();
 			avplayReadyRef.current = false;
 
-			resetPopups();
+			resetPopups(); // eslint-disable-line no-use-before-define
 			if (controlsTimeoutRef.current) {
 				clearTimeout(controlsTimeoutRef.current);
 			}
@@ -749,7 +749,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 
 		setError('Playback failed. The file format may not be supported.');
-	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, startAVPlayback]);
+	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, startAVPlayback, mediaSourceId]);
 
 	// Keep callback refs in sync
 	handleEndedCallbackRef.current = handleEnded;
@@ -1431,6 +1431,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				handleSubtitleOffsetChange={handleSubtitleOffsetChange}
 				closeModal={closeModal}
 				stopPropagation={stopPropagation}
+				// eslint-disable-next-line react/jsx-no-bind
 				renderInfoPlaybackRows={({css: c}) => (
 					<div className={c.infoRow}>
 						<span className={c.infoLabel}>Player</span>

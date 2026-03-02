@@ -253,7 +253,7 @@ apiFetchIndexRef.current = 0;
 initialFocusDoneRef.current = false;
 loadItems(0, false);
 }
-}, [library, sortKey, favoritesOnly, watchedOnly, musicContentType, isFolderView, currentFolderId, loadItems]);
+}, [library, sortKey, favoritesOnly, watchedOnly, musicContentType, isFolderView, currentFolderId, loadItems, genreFilter]);
 
 useEffect(() => {
 if (items.length > 0 && !isLoading && !initialFocusDoneRef.current) {
@@ -405,6 +405,8 @@ const handleCloseSettingsPanel = useCallback(() => {
 	setShowSettingsPanel(false);
 }, []);
 
+const stopPropagation = useCallback((e) => e.stopPropagation(), []);
+
 const handleCycleImageSize = useCallback(() => {
 	const sizes = ['small', 'medium', 'large'];
 	const idx = sizes.indexOf(imageSize);
@@ -428,8 +430,9 @@ const handleToggleFolderView = useCallback(() => {
 	setFolderStack([]);
 }, [isFolderView, setFolderView]);
 
-const handleFolderBreadcrumb = useCallback((depth) => {
-	setFolderStack(prev => prev.slice(0, depth));
+const handleFolderBreadcrumb = useCallback((ev) => {
+	const depth = parseInt(ev.currentTarget?.dataset?.depth, 10);
+	if (!isNaN(depth)) setFolderStack(prev => prev.slice(0, depth));
 }, []);
 
 const handleMusicContentSelect = useCallback((ev) => {
@@ -495,6 +498,7 @@ return (
 {...rest}
 className={`${css.itemCard} ${isSquareImage ? css.squareCard : ''}`}
 onClick={handleItemClick}
+// eslint-disable-next-line react/jsx-no-bind
 onFocus={() => {
 	setFocusedItem(item);
 	if (settings?.mdblistEnabled && settings?.useMoonfinPlugin) {
@@ -611,7 +615,8 @@ return (
 <div className={css.breadcrumb}>
 <SpottableButton
 	className={css.breadcrumbItem}
-	onClick={() => handleFolderBreadcrumb(0)}
+	onClick={handleFolderBreadcrumb}
+	data-depth={0}
 	spotlightId="breadcrumb-root"
 >
 	{library.Name}
@@ -622,7 +627,8 @@ return (
 	{i < folderStack.length - 1 ? (
 		<SpottableButton
 			className={css.breadcrumbItem}
-			onClick={() => handleFolderBreadcrumb(i + 1)}
+			onClick={handleFolderBreadcrumb}
+			data-depth={i + 1}
 		>
 			{f.name}
 		</SpottableButton>
@@ -737,7 +743,7 @@ spotlightId="library-grid"
 <SortPanelContainer
 className={css.sortPanel}
 spotlightId="sort-panel"
-onClick={(e) => e.stopPropagation()}
+onClick={stopPropagation}
 >
 <h2 className={css.sortPanelTitle}>Sort & Filter</h2>
 
@@ -819,7 +825,7 @@ spotlightId="filter-watched"
 <SettingsPanelContainer
 className={css.sortPanel}
 spotlightId="settings-panel"
-onClick={(e) => e.stopPropagation()}
+onClick={stopPropagation}
 >
 <div className={css.settingsHeader}>{isGenreMode ? 'GENRE' : 'LIBRARIES'}</div>
 <h2 className={css.sortPanelTitle}>{displayName}</h2>

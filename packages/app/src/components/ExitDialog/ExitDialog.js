@@ -47,7 +47,6 @@ const ExitDialog = ({open, onCancel, onExit}) => {
 				e.stopPropagation();
 				const current = Spotlight.getCurrent();
 				const cancelBtn = document.querySelector('[data-spotlight-id="exit-cancel-btn"]');
-				const exitBtn = document.querySelector('[data-spotlight-id="exit-confirm-btn"]');
 				if (current === cancelBtn || (cancelBtn && cancelBtn.contains(current))) {
 					Spotlight.focus('exit-confirm-btn');
 				} else {

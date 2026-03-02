@@ -67,7 +67,7 @@ export function fetchVideoStreamUrl (videoId, preferHighQuality) {
 export function extractYouTubeId (item) {
 	let trailers = item && item.RemoteTrailers;
 	if (!trailers || trailers.length === 0) return null;
-	for (var i = 0; i < trailers.length; i++) {
+	for (let i = 0; i < trailers.length; i++) {
 		let url = trailers[i].Url || trailers[i].url || '';
 		let match = url.match(YT_ID_REGEX);
 		if (match) return match[1];
@@ -93,7 +93,7 @@ export function fetchSponsorSegments (videoId) {
 			.then(function (data) {
 				if (!Array.isArray(data)) { resolve([]); return; }
 				let segments = [];
-				for (var i = 0; i < data.length; i++) {
+				for (let i = 0; i < data.length; i++) {
 					if (data[i].segment && data[i].segment.length === 2) {
 						segments.push({start: data[i].segment[0], end: data[i].segment[1]});
 					}
@@ -108,7 +108,7 @@ export function getTrailerStartTime (segments) {
 	let startTime = 0;
 	if (!segments || segments.length === 0) return startTime;
 	let sorted = segments.slice().sort(function (a, b) { return a.start - b.start; });
-	for (var i = 0; i < sorted.length; i++) {
+	for (let i = 0; i < sorted.length; i++) {
 		if (sorted[i].start <= startTime + 1) {
 			startTime = Math.max(startTime, sorted[i].end);
 		}

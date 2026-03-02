@@ -464,6 +464,10 @@ const AppContent = (props) => {
 		setShowAccountModal(false);
 	}, []);
 
+	const handleCancelExitDialog = useCallback(() => {
+		setShowExitDialog(false);
+	}, []);
+
 	const handleOpenFavorites = useCallback(() => {
 		navigateTo(PANELS.FAVORITES);
 	}, [navigateTo]);
@@ -845,7 +849,7 @@ const AppContent = (props) => {
 			/>
 			<ExitDialog
 				open={showExitDialog}
-				onCancel={() => setShowExitDialog(false)}
+				onCancel={handleCancelExitDialog}
 				onExit={performAppCleanup}
 			/>
 			<UpdateNotification

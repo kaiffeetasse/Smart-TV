@@ -30,16 +30,16 @@ if (typeof Element !== 'undefined' && !Element.prototype.scrollTo) {
 	if (window.CSS && window.CSS.supports && window.CSS.supports('--a', '0')) return;
 
 	function patchSliderKnobs () {
-		var sliders = document.querySelectorAll('[class*="slider"]');
-		for (var i = 0; i < sliders.length; i++) {
-			var el = sliders[i];
-			var style = el.getAttribute('style');
+		const sliders = document.querySelectorAll('[class*="slider"]');
+		for (let i = 0; i < sliders.length; i++) {
+			const el = sliders[i];
+			const style = el.getAttribute('style');
 			if (!style) continue;
 
-			var match = style.match(/--slider-knob-pct:\s*([^;]+)/);
+			const match = style.match(/--slider-knob-pct:\s*([^;]+)/);
 			if (match) {
-				var pct = match[1].trim();
-				var knob = el.querySelector('[class*="knob"]');
+				const pct = match[1].trim();
+				const knob = el.querySelector('[class*="knob"]');
 				if (knob) {
 					if (el.className.indexOf('vertical') !== -1) {
 						knob.style.bottom = pct;
@@ -51,7 +51,7 @@ if (typeof Element !== 'undefined' && !Element.prototype.scrollTo) {
 		}
 	}
 
-	var rafId;
+	let rafId;
 	function schedulePatch () {
 		if (rafId) return;
 		rafId = window.requestAnimationFrame(function () {

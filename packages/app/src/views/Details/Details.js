@@ -12,7 +12,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import RatingsRow from '../../components/RatingsRow';
 import {formatDuration, getImageUrl, getBackdropId, getLogoUrl} from '../../utils/helpers';
 import {KEYS, isBackKey} from '../../utils/keys';
-import {extractYouTubeIdFromUrl, fetchVideoStreamUrl} from '../../services/youtubeTrailer';
+import {fetchVideoStreamUrl} from '../../services/youtubeTrailer';
 
 import css from './Details.module.less';
 
@@ -182,16 +182,16 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, bac
 				setSelectedVersionIndex(0);
 				const ms = data.MediaSources?.[0];
 				if (ms) {
-					const audioStreams = ms.MediaStreams?.filter(s => s.Type === 'Audio') || [];
-					const subtitleStreams = ms.MediaStreams?.filter(s => s.Type === 'Subtitle') || [];
+					const initAudioStreams = ms.MediaStreams?.filter(s => s.Type === 'Audio') || [];
+					const initSubtitleStreams = ms.MediaStreams?.filter(s => s.Type === 'Subtitle') || [];
 
 					if (ms.DefaultAudioStreamIndex != null) {
-						const idx = audioStreams.findIndex(s => s.Index === ms.DefaultAudioStreamIndex);
+						const idx = initAudioStreams.findIndex(s => s.Index === ms.DefaultAudioStreamIndex);
 						if (idx >= 0) setSelectedAudioIndex(idx);
 					}
 
 					if (ms.DefaultSubtitleStreamIndex != null) {
-						const idx = subtitleStreams.findIndex(s => s.Index === ms.DefaultSubtitleStreamIndex);
+						const idx = initSubtitleStreams.findIndex(s => s.Index === ms.DefaultSubtitleStreamIndex);
 						if (idx >= 0) setSelectedSubtitleIndex(idx);
 					} else {
 						setSelectedSubtitleIndex(-1);
@@ -391,20 +391,19 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, bac
 
 	const handleTrailer = useCallback(() => {
 		// Trailers disabled — isolating decoder exhaustion issue
-		return;
-		if (item?.LocalTrailerCount > 0) {
-			onPlay?.(item, false, false, true);
-		} else if (item?.RemoteTrailers?.length > 0) {
-			const trailerUrl = item.RemoteTrailers[0].Url || '';
-			const videoId = extractYouTubeIdFromUrl(trailerUrl);
-			if (videoId) {
-				setTrailerOverlay(videoId);
-				window.requestAnimationFrame(() => Spotlight.focus('trailer-close-btn'));
-			} else if (trailerUrl) {
-				window.open(trailerUrl, '_blank');
-			}
-		}
-	}, [item, onPlay]);
+		// if (item?.LocalTrailerCount > 0) {
+		// 	onPlay?.(item, false, false, true);
+		// } else if (item?.RemoteTrailers?.length > 0) {
+		// 	const trailerUrl = item.RemoteTrailers[0].Url || '';
+		// 	const videoId = extractYouTubeIdFromUrl(trailerUrl);
+		// 	if (videoId) {
+		// 		setTrailerOverlay(videoId);
+		// 		window.requestAnimationFrame(() => Spotlight.focus('trailer-close-btn'));
+		// 	} else if (trailerUrl) {
+		// 		window.open(trailerUrl, '_blank');
+		// 	}
+		// }
+	}, []);
 
 	const handleToggleFavorite = useCallback(async () => {
 		if (!item) return;
@@ -534,16 +533,16 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, bac
 		if (isNaN(index) || !item?.MediaSources?.[index]) return;
 		setSelectedVersionIndex(index);
 		const ms = item.MediaSources[index];
-		const audioStreams = ms.MediaStreams?.filter(s => s.Type === 'Audio') || [];
-		const subtitleStreams = ms.MediaStreams?.filter(s => s.Type === 'Subtitle') || [];
+		const versionAudioStreams = ms.MediaStreams?.filter(s => s.Type === 'Audio') || [];
+		const versionSubtitleStreams = ms.MediaStreams?.filter(s => s.Type === 'Subtitle') || [];
 		if (ms.DefaultAudioStreamIndex != null) {
-			const idx = audioStreams.findIndex(s => s.Index === ms.DefaultAudioStreamIndex);
+			const idx = versionAudioStreams.findIndex(s => s.Index === ms.DefaultAudioStreamIndex);
 			setSelectedAudioIndex(idx >= 0 ? idx : 0);
 		} else {
 			setSelectedAudioIndex(0);
 		}
 		if (ms.DefaultSubtitleStreamIndex != null) {
-			const idx = subtitleStreams.findIndex(s => s.Index === ms.DefaultSubtitleStreamIndex);
+			const idx = versionSubtitleStreams.findIndex(s => s.Index === ms.DefaultSubtitleStreamIndex);
 			setSelectedSubtitleIndex(idx >= 0 ? idx : -1);
 		} else {
 			setSelectedSubtitleIndex(-1);

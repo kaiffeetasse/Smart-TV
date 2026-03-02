@@ -58,7 +58,7 @@ success: true,
 status: response.status,
 headers: (function () {
 					// Build headers object manually for Chromium 47 compat (no Headers.entries())
-					var h = {};
+					const h = {};
 					response.headers.forEach(function (value, key) { h[key] = value; });
 					return h;
 				})(),

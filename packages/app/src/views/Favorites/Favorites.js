@@ -294,6 +294,8 @@ const idx = dirs.indexOf(gridDirection);
 setGridDirection(dirs[(idx + 1) % dirs.length]);
 }, [gridDirection, setGridDirection]);
 
+const stopPropagation = useCallback((e) => e.stopPropagation(), []);
+
 const isWideImage = imageType === 'thumbnail';
 const posterHeight = isWideImage
 ? ({small: 120, medium: 160, large: 210}[imageSize] || 160)
@@ -454,7 +456,7 @@ spotlightId="favorites-grid"
 <SortPanelContainer
 className={css.sortPanel}
 spotlightId="fav-sort-panel"
-onClick={(e) => e.stopPropagation()}
+onClick={stopPropagation}
 >
 <h2 className={css.sortPanelTitle}>Sort & Filter</h2>
 
@@ -502,7 +504,7 @@ spotlightId={`fav-filter-option-${index}`}
 <SettingsPanelContainer
 className={css.sortPanel}
 spotlightId="fav-settings-panel"
-onClick={(e) => e.stopPropagation()}
+onClick={stopPropagation}
 >
 <div className={css.settingsHeader}>FAVORITES</div>
 <h2 className={css.sortPanelTitle}>Settings</h2>

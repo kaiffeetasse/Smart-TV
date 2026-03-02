@@ -72,6 +72,7 @@ setIsLoading(false);
 }
 };
 init();
+// eslint-disable-next-line react-hooks/exhaustive-deps
 }, []);
 
 const configureWithMoonfin = useCallback(async (jellyfinServer, token) => {

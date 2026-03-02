@@ -272,6 +272,8 @@ const idx = sizes.indexOf(cardSize);
 setCardSize(sizes[(idx + 1) % sizes.length]);
 }, [cardSize, setCardSize]);
 
+const stopPropagation = useCallback((e) => e.stopPropagation(), []);
+
 useEffect(() => {
 if (!backHandlerRef) return;
 backHandlerRef.current = () => {
@@ -440,7 +442,7 @@ spotlightId="genres-grid"
 <SortPanelContainer
 className={css.sortPanel}
 spotlightId="genres-sort-panel"
-onClick={(e) => e.stopPropagation()}
+onClick={stopPropagation}
 >
 <h2 className={css.sortPanelTitle}>Sort & Filter</h2>
 
@@ -503,7 +505,7 @@ spotlightId={`genre-lib-${index}`}
 <SettingsPanelContainer
 className={css.sortPanel}
 spotlightId="genres-settings-panel"
-onClick={(e) => e.stopPropagation()}
+onClick={stopPropagation}
 >
 <div className={css.settingsHeader}>GENRES</div>
 <h2 className={css.sortPanelTitle}>Settings</h2>

@@ -316,7 +316,7 @@ const Search = ({onSelectItem, onSelectPerson}) => {
 				</div>
 			</SpottableDiv>
 		);
-	}, [handleCardClick]);
+	}, [handleCardClick, jellyseerrApi]);
 
 	const renderJellyfinCard = useCallback((item, index, rowId) => {
 		const isPerson = item.Type === 'Person';

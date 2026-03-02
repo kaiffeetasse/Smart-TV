@@ -208,12 +208,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			video.addEventListener(event, handler);
 		}
 
+		const container = containerRef.current;
+
 		return () => {
 			for (const [event, handler] of Object.entries(listeners)) {
 				video.removeEventListener(event, handler);
 			}
-			if (containerRef.current && containerRef.current.contains(video)) {
-				containerRef.current.removeChild(video);
+			if (container && container.contains(video)) {
+				container.removeChild(video);
 			}
 			videoRef.current = null;
 		};
@@ -247,7 +249,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			setSeekPosition(0);
 			setIsSeeking(false);
 
-			resetPopups();
+			resetPopups(); // eslint-disable-line no-use-before-define
 			setNextEpisode(null);
 
 			await waitForDecoderRelease();
@@ -447,7 +449,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				console.log('[Player] Skipping cleanup — already handled by handleBack/handleEnded');
 				playback.stopProgressReporting();
 				playback.stopHealthMonitoring();
-				resetPopups();
+				resetPopups(); // eslint-disable-line no-use-before-define
 				if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
 				if (seekDebounceTimerRef.current) clearTimeout(seekDebounceTimerRef.current);
 				return;
@@ -470,7 +472,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			playback.stopProgressReporting();
 			playback.stopHealthMonitoring();
 
-			resetPopups();
+			resetPopups(); // eslint-disable-line no-use-before-define
 			if (controlsTimeoutRef.current) {
 				clearTimeout(controlsTimeoutRef.current);
 			}
@@ -490,6 +492,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				}
 			}
 		};
+	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [item, resume, selectedQuality, settings.maxBitrate, settings.preferTranscode, settings.forceDirectPlay, settings.subtitleMode, settings.skipIntro, initialAudioIndex, initialSubtitleIndex]);
 
 	useEffect(() => {
@@ -565,7 +568,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				setTimeout(() => seekInTranscode(lastSeekTargetRef.current), 100);
 			}
 		}
-	}, [item, selectedQuality, settings.maxBitrate]);
+	}, [item, selectedQuality, settings.maxBitrate, mediaSourceId]);
 
 	const seekByOffset = useCallback((deltaSec, updateSeekPosition) => {
 		const baseTime = (playMethod === 'Transcode')
@@ -1143,7 +1146,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} finally {
 			isHandlingErrorRef.current = false;
 		}
-	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate]);
+	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, mediaSourceId]);
 
 	useEffect(() => {
 		handlersRef.current = {
@@ -1747,6 +1750,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				handleSubtitleOffsetChange={handleSubtitleOffsetChange}
 				closeModal={closeModal}
 				stopPropagation={stopPropagation}
+				// eslint-disable-next-line react/jsx-no-bind
 				renderInfoPlaybackRows={({css: c, mediaSource, playMethod: pm}) => {
 					const getTranscodeReason = () => {
 						if (pm !== 'Transcode') return null;
@@ -1768,6 +1772,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						</div>
 					) : null;
 				}}
+				// eslint-disable-next-line react/jsx-no-bind
 				renderInfoVideoExtra={({css: c, videoStream}) => (
 					videoStream?.BitDepth ? (
 						<div className={c.infoRow}>

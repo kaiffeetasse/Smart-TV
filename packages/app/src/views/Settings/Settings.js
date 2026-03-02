@@ -340,7 +340,9 @@ const Settings = ({onBack, onLibrariesChanged}) => {
 		}
 	}, [settings, updateSetting]);
 
-	const toggleMdblistSource = useCallback((source) => {
+	const toggleMdblistSource = useCallback((ev) => {
+		const source = ev.currentTarget?.dataset?.source;
+		if (!source) return;
 		const current = settings.mdblistRatingSources || [];
 		const updated = current.includes(source)
 			? current.filter(s => s !== source)
@@ -392,12 +394,23 @@ const Settings = ({onBack, onLibrariesChanged}) => {
 		setOptionDialog(null);
 	}, []);
 
-	const handleOptionSelect = useCallback((value) => {
-		if (optionDialog) {
-			updateSetting(optionDialog.settingKey, value);
+	const handleOptionSelect = useCallback((ev) => {
+		const value = ev.currentTarget?.dataset?.value;
+		if (optionDialog && value !== undefined) {
+			// Attempt to parse as number for numeric settings
+			const parsed = /^\d+$/.test(value) ? parseInt(value, 10) : value;
+			updateSetting(optionDialog.settingKey, parsed);
 		}
 		setOptionDialog(null);
 	}, [optionDialog, updateSetting]);
+
+	const handleMdblistApiKeyChange = useCallback((e) => {
+		updateSetting('mdblistApiKey', e.target ? e.target.value : e.value || '');
+	}, [updateSetting]);
+
+	const handleTmdbApiKeyChange = useCallback((e) => {
+		updateSetting('tmdbApiKey', e.target ? e.target.value : e.value || '');
+	}, [updateSetting]);
 
 	const handleSliderPositionAbsolute = useCallback((e) => {
 		updateSetting('subtitlePositionAbsolute', e.value);
@@ -1020,7 +1033,7 @@ const Settings = ({onBack, onLibrariesChanged}) => {
 										type="text"
 										placeholder={info.mdblistAvailable ? 'Leave blank to use server key' : 'Enter your MDBList API key'}
 										value={settings.mdblistApiKey || ''}
-										onChange={(e) => updateSetting('mdblistApiKey', e.target ? e.target.value : e.value || '')}
+										onChange={handleMdblistApiKeyChange}
 										className={css.input}
 										spotlightId="setting-mdblist-api-key"
 									/>
@@ -1030,7 +1043,8 @@ const Settings = ({onBack, onLibrariesChanged}) => {
 								<SpottableDiv
 									key={source.value}
 									className={css.settingItem}
-									onClick={() => toggleMdblistSource(source.value)}
+									onClick={toggleMdblistSource}
+									data-source={source.value}
 									spotlightId={`setting-mdblist-${source.value}`}
 								>
 									<div className={css.settingLabel}>
@@ -1064,7 +1078,7 @@ const Settings = ({onBack, onLibrariesChanged}) => {
 									type="text"
 									placeholder={info.tmdbAvailable ? 'Leave blank to use server key' : 'Enter your TMDB API key'}
 									value={settings.tmdbApiKey || ''}
-									onChange={(e) => updateSetting('tmdbApiKey', e.target ? e.target.value : e.value || '')}
+									onChange={handleTmdbApiKeyChange}
 									className={css.input}
 									spotlightId="setting-tmdb-api-key"
 								/>
@@ -1403,7 +1417,8 @@ const Settings = ({onBack, onLibrariesChanged}) => {
 							<SpottableDiv
 								key={opt.value}
 								className={`${css.optionItem} ${opt.value === currentValue ? css.optionItemSelected : ''}`}
-								onClick={() => handleOptionSelect(opt.value)}
+								onClick={handleOptionSelect}
+								data-value={opt.value}
 								spotlightId={`option-${idx}`}
 								spotlightDisabled={false}
 								{...(opt.value === currentValue ? {'data-spotlight-default-element': ''} : {})}

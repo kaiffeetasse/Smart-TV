@@ -131,7 +131,7 @@ const resolveFromEnvelope = (envelope, adminDefaults) => {
 
 const deepEqual = (a, b) => {
 	if (a === b) return true;
-	if (a == null || b == null) return a == b;
+	if (a == null || b == null) return a === b;
 	if (Array.isArray(a) && Array.isArray(b)) {
 		if (a.length !== b.length) return false;
 		return a.every((v, i) => deepEqual(v, b[i]));
