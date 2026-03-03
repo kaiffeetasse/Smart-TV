@@ -94,6 +94,8 @@ const AccountModal = ({
 		setServerToRemove(null);
 	}, []);
 
+	if (!open) return null;
+
 	return (
 		<>
 			<Popup
