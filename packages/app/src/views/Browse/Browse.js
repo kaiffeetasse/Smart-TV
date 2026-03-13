@@ -1,34 +1,26 @@
-import {useState, useEffect, useCallback, useRef, useMemo} from 'react';
-import Spottable from '@enact/spotlight/Spottable';
+import {useState, useEffect, useCallback, useRef, useMemo, useReducer} from 'react';
 import Spotlight from '@enact/spotlight';
 import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import MediaRow from '../../components/MediaRow';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import {getImageUrl, getBackdropId, getLogoUrl, formatDuration} from '../../utils/helpers';
+import {getImageUrl, getBackdropId, getLogoUrl} from '../../utils/helpers';
 import {getFromStorage, saveToStorage} from '../../services/storage';
 import * as connectionPool from '../../services/connectionPool';
-import RatingsRow from '../../components/RatingsRow';
 import DetailSection from './DetailSection';
-import {KEYS} from '../../utils/keys';
-import {extractYouTubeId, fetchSponsorSegments, fetchVideoStreamUrl, getTrailerStartTime} from '../../services/youtubeTrailer';
-import {getSharedVideoElement, cleanupVideoElement} from '@moonfin/platform-webos/video';
+import FeaturedBanner from './FeaturedBanner';
+import BackdropLayer from './BackdropLayer';
 
 import css from './Browse.module.less';
 
 const FOCUS_DELAY_MS = 100;
-const BACKDROP_DEBOUNCE_MS = 500;
-const FEATURED_GENRES_LIMIT = 3;
 const TRANSITION_DELAY_MS = 450;
-const PRELOAD_ADJACENT_SLIDES = 2;
-const TRAILER_REVEAL_MS = 4000;
 
 // Cache TTL in milliseconds (5 minutes for volatile data, 30 minutes for libraries)
 const CACHE_TTL_VOLATILE = 5 * 60 * 1000;
 const CACHE_TTL_LIBRARIES = 30 * 60 * 1000;
 const STORAGE_KEY_BROWSE = 'browse_cache';
 
-// In-memory cache for instant access
 let cachedRowData = null;
 let cachedLibraries = null;
 let cachedFeaturedItems = null;
@@ -37,6 +29,44 @@ let cacheTimestamp = null;
 let lastFocusState = null;
 
 const EXCLUDED_COLLECTION_TYPES = ['livetv', 'boxsets', 'books', 'musicvideos', 'homevideos', 'photos'];
+
+const browseInitialState = {
+	isLoading: true,
+	browseMode: 'featured',
+	allRowData: [],
+	featuredItems: [],
+};
+
+function browseReducer(state, action) {
+	switch (action.type) {
+		case 'SET_INITIAL_DATA':
+			return {
+				...state,
+				isLoading: false,
+				allRowData: action.rowData,
+				featuredItems: action.featuredItems || state.featuredItems,
+			};
+		case 'APPEND_ROWS':
+			if (action.rows.length === 0) return state;
+			return { ...state, allRowData: [...state.allRowData, ...action.rows] };
+		case 'REFRESH_VOLATILE': {
+			const filtered = state.allRowData.filter(r => r.id !== 'resume' && r.id !== 'nextup');
+			return { ...state, allRowData: [...action.volatileRows, ...filtered] };
+		}
+		case 'SET_ROW_DATA':
+			return { ...state, allRowData: action.rowData };
+		case 'SET_LOADING':
+			if (state.isLoading === action.value) return state;
+			return { ...state, isLoading: action.value };
+		case 'SET_BROWSE_MODE':
+			if (state.browseMode === action.mode) return state;
+			return { ...state, browseMode: action.mode };
+		case 'SET_FEATURED_ITEMS':
+			return { ...state, featuredItems: action.items };
+		default:
+			return state;
+	}
+}
 
 const stripItemForCache = (item) => ({
 	Id: item.Id,
@@ -63,9 +93,6 @@ const stripItemForCache = (item) => ({
 	isLibraryTile: item.isLibraryTile,
 });
 
-const SpottableDiv = Spottable('div');
-const SpottableButton = Spottable('button');
-
 const Browse = ({
 	onSelectItem,
 	onSelectLibrary,
@@ -75,37 +102,17 @@ const Browse = ({
 	const {settings} = useSettings();
 	const unifiedMode = settings.unifiedLibraryMode && hasMultipleServers;
 	const isLegacy = typeof document !== 'undefined' && (' ' + document.documentElement.className + ' ').indexOf(' legacy ') >= 0;
-	const [isLoading, setIsLoading] = useState(true);
-	const [featuredItems, setFeaturedItems] = useState([]);
-	const [currentFeaturedIndex, setCurrentFeaturedIndex] = useState(0);
-	const [backdropUrl, setBackdropUrl] = useState('');
-	const [backdropOpacity, setBackdropOpacity] = useState(1);
-	const [prevBackdropUrl, setPrevBackdropUrl] = useState(null);
-	const [prevBackdropOpacity, setPrevBackdropOpacity] = useState(0);
-	const [browseMode, setBrowseMode] = useState('featured');
-	const [featuredFocused, setFeaturedFocused] = useState(false);
+	const [state, dispatch] = useReducer(browseReducer, browseInitialState);
+	const {isLoading, browseMode, allRowData, featuredItems} = state;
 	const [focusedItemForBackdrop, setFocusedItemForBackdrop] = useState(null);
-	const [allRowData, setAllRowData] = useState([]);
-	const [trailerActive, setTrailerActive] = useState(false);
+	const [currentFeaturedItem, setCurrentFeaturedItem] = useState(null);
 	const mainContentRef = useRef(null);
-	const backdropTimeoutRef = useRef(null);
-	const backdropFadeIntervalRef = useRef(null);
-	const pendingBackdropRef = useRef(null);
-	const preloadedImagesRef = useRef(new Set());
 	const detailSectionRef = useRef(null);
 	const lastFocusedRowRef = useRef(null);
 	const wasVisibleRef = useRef(true);
-	const trailerContainerRef = useRef(null);
-	const trailerVideoRef = useRef(null);
-	const trailerSkipIntervalRef = useRef(null);
-	const trailerStateRef = useRef('idle');
-	const trailerVideoIdRef = useRef(null);
-	const trailerRevealTimerRef = useRef(null);
-	const sponsorSegmentsRef = useRef([]);
 	const prevFilteredRowsRef = useRef([]);
 	const filteredRowsLengthRef = useRef(0);
 
-	// Helper to get the correct server URL for an item (supports cross-server items)
 	const getItemServerUrl = useCallback((item) => {
 		return item?._serverUrl || serverUrl;
 	}, [serverUrl]);
@@ -114,7 +121,6 @@ const Browse = ({
 		try {
 			let items = [];
 			if (unifiedMode) {
-				// Fetch from all servers
 				items = await connectionPool.getRandomItemsFromAllServers(settings.featuredContentType, settings.featuredItemCount);
 			} else {
 				const randomItems = await api.getRandomItems(settings.featuredContentType, settings.featuredItemCount);
@@ -127,19 +133,18 @@ const Browse = ({
 					...item,
 					LogoUrl: getLogoUrl(getItemServerUrl(item), item, {maxWidth: 800, quality: 90})
 				}));
-				setFeaturedItems(featuredWithLogos);
-				setCurrentFeaturedIndex(0);
+				dispatch({type: 'SET_FEATURED_ITEMS', items: featuredWithLogos});
 				cachedFeaturedItems = featuredWithLogos;
 				return featuredWithLogos;
 			} else if (fallbackItems) {
-				setFeaturedItems(fallbackItems);
+				dispatch({type: 'SET_FEATURED_ITEMS', items: fallbackItems});
 				cachedFeaturedItems = fallbackItems;
 				return fallbackItems;
 			}
 		} catch (e) {
 			console.warn('[Browse] Failed to fetch fresh featured items:', e);
 			if (fallbackItems) {
-				setFeaturedItems(fallbackItems);
+				dispatch({type: 'SET_FEATURED_ITEMS', items: fallbackItems});
 				cachedFeaturedItems = fallbackItems;
 				return fallbackItems;
 			}
@@ -205,7 +210,6 @@ const Browse = ({
 				const resumeItems = mergeResumeRow?.items || [];
 				const nextUpItems = nextUpRow?.items || [];
 
-				// Track series lastPlayedDate from resume items
 				const seriesLastPlayedMap = new Map();
 				resumeItems.forEach(item => {
 					const seriesId = item.SeriesId;
@@ -218,10 +222,8 @@ const Browse = ({
 					}
 				});
 
-				// Create set of resume item IDs to avoid duplicates
 				const mergeResumeItemIds = new Set(resumeItems.map(item => item.Id));
 
-				// Filter next up items that aren't already in resume and inherit lastPlayedDate
 				const filteredNextUp = nextUpItems
 					.filter(item => !mergeResumeItemIds.has(item.Id))
 					.map(item => {
@@ -238,7 +240,6 @@ const Browse = ({
 						return item;
 					});
 
-				// Combine and sort by lastPlayedDate (most recent first)
 				const combinedItems = [...resumeItems, ...filteredNextUp].sort((a, b) => {
 					const aLastPlayed = a.UserData?.LastPlayedDate;
 					const bLastPlayed = b.UserData?.LastPlayedDate;
@@ -317,7 +318,7 @@ const Browse = ({
 	const handleNavigateUp = useCallback((fromRowIndex) => {
 		if (fromRowIndex === 0) {
 			if (settings.showFeaturedBar !== false) {
-				setBrowseMode('featured');
+				dispatch({type: 'SET_BROWSE_MODE', mode: 'featured'});
 				setTimeout(() => Spotlight.focus('featured-banner'), 50);
 			} else if (settings.navbarPosition !== 'left') {
 				Spotlight.focus('navbar-home');
@@ -346,17 +347,9 @@ const Browse = ({
 
 	useEffect(() => {
 		if (settings.showFeaturedBar === false) {
-			setBrowseMode('rows');
+			dispatch({type: 'SET_BROWSE_MODE', mode: 'rows'});
 		}
 	}, [settings.showFeaturedBar]);
-
-	useEffect(() => {
-		return () => {
-			if (backdropFadeIntervalRef.current) {
-				clearTimeout(backdropFadeIntervalRef.current);
-			}
-		};
-	}, []);
 
 	useEffect(() => {
 		if (isVisible && !wasVisibleRef.current && !isLoading && filteredRows.length > 0) {
@@ -401,8 +394,6 @@ const Browse = ({
 		cacheTimestamp = null;
 	}, [accessToken]);
 
-	// Listen for browse refresh events to clear caches and reload data
-	// This helps reduce memory pressure when navigating back to Browse
 	useEffect(() => {
 		const handleBrowseRefresh = () => {
 			console.log('[Browse] Received refresh event - clearing caches');
@@ -410,7 +401,6 @@ const Browse = ({
 			cachedLibraries = null;
 			cachedFeaturedItems = null;
 			cacheTimestamp = null;
-			preloadedImagesRef.current.clear();
 		};
 
 		window.addEventListener('moonfin:browseRefresh', handleBrowseRefresh);
@@ -419,7 +409,6 @@ const Browse = ({
 		};
 	}, []);
 
-	// Helper to check if cache is still valid
 	const isCacheValid = useCallback((timestamp, ttl) => {
 		if (!timestamp) return false;
 		return Date.now() - timestamp < ttl;
@@ -445,7 +434,6 @@ const Browse = ({
 		}
 	}, [serverUrl, user?.Id]);
 
-	// Load browse data from persistent storage
 	const loadBrowseCache = useCallback(async () => {
 		try {
 			const cached = await getFromStorage(STORAGE_KEY_BROWSE);
@@ -462,31 +450,30 @@ const Browse = ({
 		const loadData = async () => {
 			// In unified mode, skip cache and always fetch fresh from all servers
 			if (unifiedMode) {
-				setIsLoading(true);
+				dispatch({type: 'SET_LOADING', value: true});
 				await fetchAllData(); // eslint-disable-line no-use-before-define
 				return;
 			}
 
 			if (cachedRowData && cachedLibraries && cachedFeaturedItems && isCacheValid(cacheTimestamp, CACHE_TTL_VOLATILE)) {
 				console.log('[Browse] Using in-memory cache');
-				setAllRowData(cachedRowData);
+				dispatch({type: 'SET_ROW_DATA', rowData: cachedRowData});
 				await fetchFreshFeaturedItems(cachedFeaturedItems);
-				setIsLoading(false);
+				dispatch({type: 'SET_LOADING', value: false});
 				return;
 			}
 
 			const persistedCache = await loadBrowseCache();
 			const hasValidPersistedCache = persistedCache && isCacheValid(persistedCache.timestamp, CACHE_TTL_LIBRARIES);
 
-			// If we have valid persisted cache, show it immediately
 			if (hasValidPersistedCache) {
 				console.log('[Browse] Using persisted cache, will refresh in background');
-				setAllRowData(persistedCache.rowData);
+				dispatch({type: 'SET_ROW_DATA', rowData: persistedCache.rowData});
 				await fetchFreshFeaturedItems(persistedCache.featuredItems);
 				cachedLibraries = persistedCache.libraries;
 				cachedRowData = persistedCache.rowData;
 				cacheTimestamp = persistedCache.timestamp;
-				setIsLoading(false);
+				dispatch({type: 'SET_LOADING', value: false});
 
 				// If volatile data is stale, refresh in background
 				if (!isCacheValid(persistedCache.timestamp, CACHE_TTL_VOLATILE)) {
@@ -496,18 +483,15 @@ const Browse = ({
 				return;
 			}
 
-			// No valid cache - show loading and fetch everything
-			setIsLoading(true);
+				dispatch({type: 'SET_LOADING', value: true});
 			await fetchAllData(); // eslint-disable-line no-use-before-define
 		};
 
-		// Fetch volatile data (resume, next up) in background without showing loading
 		const refreshVolatileData = async () => {
 			try {
 				let resumeItems, nextUp;
 
 				if (unifiedMode) {
-					// Fetch from all servers
 					[resumeItems, nextUp] = await Promise.all([
 						connectionPool.getResumeItemsFromAllServers(),
 						connectionPool.getNextUpFromAllServers()
@@ -521,43 +505,40 @@ const Browse = ({
 					]);
 				}
 
-				// Update just the volatile rows while preserving the rest
-				setAllRowData(prev => {
-					const filtered = prev.filter(r => r.id !== 'resume' && r.id !== 'nextup');
-					const newRows = [];
+				const volatileRows = [];
 
-					if (resumeItems.Items?.length > 0) {
-						newRows.push({
-							id: 'resume',
-							title: 'Continue Watching',
-							items: resumeItems.Items,
-							type: 'landscape'
-						});
-					}
+				if (resumeItems.Items?.length > 0) {
+					volatileRows.push({
+						id: 'resume',
+						title: 'Continue Watching',
+						items: resumeItems.Items,
+						type: 'landscape'
+					});
+				}
 
-					if (nextUp.Items?.length > 0) {
-						newRows.push({
-							id: 'nextup',
-							title: 'Next Up',
-							items: nextUp.Items,
-							type: 'landscape'
-						});
-					}
+				if (nextUp.Items?.length > 0) {
+					volatileRows.push({
+						id: 'nextup',
+						title: 'Next Up',
+						items: nextUp.Items,
+						type: 'landscape'
+					});
+				}
 
-					const updated = [...newRows, ...filtered];
-					cachedRowData = updated;
+				dispatch({type: 'REFRESH_VOLATILE', volatileRows});
+				if (cachedRowData) {
+					const filtered = cachedRowData.filter(r => r.id !== 'resume' && r.id !== 'nextup');
+					cachedRowData = [...volatileRows, ...filtered];
 					cacheTimestamp = Date.now();
 					if (!unifiedMode) {
-						saveBrowseCache(updated, cachedLibraries, cachedFeaturedItems);
+						saveBrowseCache(cachedRowData, cachedLibraries, cachedFeaturedItems);
 					}
-					return updated;
-				});
+				}
 			} catch (e) {
 				console.warn('[Browse] Background refresh failed:', e);
 			}
 		};
 
-		// Full data fetch
 		const fetchAllData = async () => {
 			try {
 				let libs, resumeItems, nextUp, userConfig, randomItems;
@@ -575,7 +556,6 @@ const Browse = ({
 					userConfig = null; // Not supported in unified mode
 					randomItems = {Items: randomArray};
 				} else {
-					// Fetch from single server
 					const results = await Promise.all([
 						api.getLibraries(),
 						api.getResumeItems(),
@@ -638,12 +618,10 @@ const Browse = ({
 						...item,
 						LogoUrl: getLogoUrl(getItemServerUrl(item), item, {maxWidth: 800, quality: 90})
 					}));
-					setFeaturedItems(featuredWithLogos);
 					cachedFeaturedItems = featuredWithLogos;
 				}
 
-				setAllRowData(rowData);
-				setIsLoading(false);
+				dispatch({type: 'SET_INITIAL_DATA', rowData, featuredItems: cachedFeaturedItems});
 
 				const eligibleLibraries = libs.filter(lib => {
 					if (EXCLUDED_COLLECTION_TYPES.includes(lib.CollectionType?.toLowerCase())) {
@@ -658,7 +636,6 @@ const Browse = ({
 				let latestResults, collectionsResult;
 
 				if (unifiedMode) {
-					// In unified mode, fetch latest per library from all servers
 					latestResults = await connectionPool.getLatestPerLibraryFromAllServers(
 						latestItemsExcludes,
 						EXCLUDED_COLLECTION_TYPES
@@ -677,166 +654,68 @@ const Browse = ({
 					]);
 				}
 
-				let appendedData;
-				setAllRowData(prev => {
-					const newRows = [];
+				const newRows = [];
 
-					for (const result of latestResults) {
-						if (result && result.latest?.length > 0) {
-							const libraryTitle = unifiedMode && result.lib._serverName
-								? `${result.lib.Name} (${result.lib._serverName})`
-								: result.lib.Name;
-							const rowId = `latest-${result.lib.Id}${result.lib._serverName ? '-' + result.lib._serverName : ''}`;
+				for (const result of latestResults) {
+					if (result && result.latest?.length > 0) {
+						const libraryTitle = unifiedMode && result.lib._serverName
+							? `${result.lib.Name} (${result.lib._serverName})`
+							: result.lib.Name;
+						const rowId = `latest-${result.lib.Id}${result.lib._serverName ? '-' + result.lib._serverName : ''}`;
 
-							if (!prev.some(r => r.id === rowId)) {
-								newRows.push({
-									id: rowId,
-									title: `Latest in ${libraryTitle}`,
-									items: result.latest,
-									library: result.lib,
-									type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
-									isLatestRow: true
-								});
-							}
-						}
-					}
-
-					if (collectionsResult?.Items?.length > 0 && !prev.some(r => r.id === 'collections')) {
 						newRows.push({
-							id: 'collections',
-							title: 'Collections',
-							items: collectionsResult.Items,
-							type: 'portrait'
+							id: rowId,
+							title: `Latest in ${libraryTitle}`,
+							items: result.latest,
+							library: result.lib,
+							type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
+							isLatestRow: true
 						});
 					}
+				}
 
-					if (newRows.length === 0) return prev;
-					const updated = [...prev, ...newRows];
-					cachedRowData = updated;
-					cacheTimestamp = Date.now();
-					appendedData = updated;
-					return updated;
-				});
+				if (collectionsResult?.Items?.length > 0) {
+					newRows.push({
+						id: 'collections',
+						title: 'Collections',
+						items: collectionsResult.Items,
+						type: 'portrait'
+					});
+				}
 
-				if (!unifiedMode && appendedData) {
-					saveBrowseCache(appendedData, libs, cachedFeaturedItems);
+				dispatch({type: 'APPEND_ROWS', rows: newRows});
+				cachedRowData = [...rowData, ...newRows];
+				cacheTimestamp = Date.now();
+
+				if (!unifiedMode && newRows.length > 0) {
+					saveBrowseCache(cachedRowData, libs, cachedFeaturedItems);
 				}
 
 			} catch (err) {
 				console.error('Failed to load browse data:', err);
 			} finally {
-				setIsLoading(false);
+				dispatch({type: 'SET_LOADING', value: false});
 			}
 		};
 
 		loadData();
 	}, [api, serverUrl, accessToken, settings.featuredContentType, settings.featuredItemCount, isCacheValid, loadBrowseCache, saveBrowseCache, fetchFreshFeaturedItems, unifiedMode, getItemServerUrl]);
 
-	useEffect(() => {
-		if (featuredItems.length === 0) return;
-
-		const preloadImage = (url) => {
-			if (!url || preloadedImagesRef.current.has(url)) return;
-			const img = new window.Image();
-			img.src = url;
-			preloadedImagesRef.current.add(url);
-		};
-
-		for (let offset = -PRELOAD_ADJACENT_SLIDES; offset <= PRELOAD_ADJACENT_SLIDES; offset++) {
-			const index = (currentFeaturedIndex + offset + featuredItems.length) % featuredItems.length;
-			const item = featuredItems[index];
-			if (item) {
-				const backdropId = getBackdropId(item);
-				if (backdropId) {
-					preloadImage(getImageUrl(serverUrl, backdropId, 'Backdrop', {maxWidth: 1920, quality: 85}));
-				}
-				if (item.LogoUrl) {
-					preloadImage(item.LogoUrl);
-				}
-			}
-		}
-	}, [currentFeaturedIndex, featuredItems, serverUrl]);
-
-	useEffect(() => {
-		const carouselSpeed = settings.carouselSpeed || 8000;
-		if (settings.showFeaturedBar === false || featuredItems.length <= 1 || !featuredFocused || browseMode !== 'featured' || carouselSpeed === 0 || trailerActive) return;
-
-		const interval = setInterval(() => {
-			setCurrentFeaturedIndex((prev) => (prev + 1) % featuredItems.length);
-		}, carouselSpeed);
-
-		return () => clearInterval(interval);
-	}, [featuredItems.length, featuredFocused, browseMode, settings.carouselSpeed, settings.showFeaturedBar, trailerActive]);
-
-	const crossFadeBackdrop = useCallback(() => {
-		setBackdropOpacity(0);
-		setPrevBackdropOpacity(1);
-
-		window.requestAnimationFrame(() => {
-			setBackdropOpacity(1);
-			setPrevBackdropOpacity(0);
-		});
-
-		if (backdropFadeIntervalRef.current) {
-			clearTimeout(backdropFadeIntervalRef.current);
-		}
-		backdropFadeIntervalRef.current = setTimeout(() => {
-			setPrevBackdropUrl(null);
-			backdropFadeIntervalRef.current = null;
-		}, 500);
-	}, []);
-
-	useEffect(() => {
-		let backdropId = null;
+	const targetBackdropUrl = useMemo(() => {
 		let itemForBackdrop = null;
 
 		if (browseMode === 'featured') {
-			itemForBackdrop = featuredItems[currentFeaturedIndex];
-			backdropId = getBackdropId(itemForBackdrop);
+			itemForBackdrop = currentFeaturedItem;
 		} else if (focusedItemForBackdrop && !isLegacy && settings.showHomeBackdrop !== false) {
 			itemForBackdrop = focusedItemForBackdrop;
-			backdropId = getBackdropId(focusedItemForBackdrop);
-		} else {
-			if (backdropUrl) {
-				setBackdropUrl('');
-				setPrevBackdropUrl(null);
-			}
-			return;
 		}
 
-		if (backdropId) {
-			const itemUrl = getItemServerUrl(itemForBackdrop);
-			const url = getImageUrl(itemUrl, backdropId, 'Backdrop', {maxWidth: 1280, quality: 80});
-			if (pendingBackdropRef.current === url || url === backdropUrl) return;
-
-			if (backdropTimeoutRef.current) {
-				clearTimeout(backdropTimeoutRef.current);
-			}
-			pendingBackdropRef.current = url;
-			backdropTimeoutRef.current = setTimeout(() => {
-				const nextUrl = pendingBackdropRef.current;
-				const img = new window.Image();
-				const applyBackdrop = () => {
-					window.requestAnimationFrame(() => {
-						setPrevBackdropUrl(backdropUrl);
-						setBackdropUrl(nextUrl);
-						crossFadeBackdrop();
-					});
-				};
-				img.onload = applyBackdrop;
-				img.onerror = applyBackdrop;
-				img.src = nextUrl;
-			}, BACKDROP_DEBOUNCE_MS);
-		}
-
-		return () => {
-			if (backdropTimeoutRef.current) {
-				clearTimeout(backdropTimeoutRef.current);
-				backdropTimeoutRef.current = null;
-				pendingBackdropRef.current = null;
-			}
-		};
-	}, [focusedItemForBackdrop, browseMode, backdropUrl, crossFadeBackdrop, currentFeaturedIndex, featuredItems, getItemServerUrl, isLegacy]);
+		if (!itemForBackdrop) return '';
+		const backdropId = getBackdropId(itemForBackdrop);
+		if (!backdropId) return '';
+		const itemUrl = getItemServerUrl(itemForBackdrop);
+		return getImageUrl(itemUrl, backdropId, 'Backdrop', {maxWidth: 1280, quality: 80});
+	}, [browseMode, currentFeaturedItem, focusedItemForBackdrop, isLegacy, settings.showHomeBackdrop, getItemServerUrl]);
 
 	const handleSelectItem = useCallback((item) => {
 		if (lastFocusedRowRef.current !== null) {
@@ -851,63 +730,30 @@ const Browse = ({
 		}
 	}, [onSelectItem, onSelectLibrary]);
 
-	const handleFeaturedPrev = useCallback(() => {
-		if (featuredItems.length <= 1) return;
-		setCurrentFeaturedIndex((prev) =>
-			prev === 0 ? featuredItems.length - 1 : prev - 1
-		);
-	}, [featuredItems.length]);
-
-	const handleFeaturedNext = useCallback(() => {
-		if (featuredItems.length <= 1) return;
-		setCurrentFeaturedIndex((prev) =>
-			(prev + 1) % featuredItems.length
-		);
-	}, [featuredItems.length]);
-
-	const handleFeaturedKeyDown = useCallback((e) => {
-		if (e.keyCode === KEYS.LEFT) {
-			e.preventDefault();
-			e.stopPropagation();
-			if (settings.navbarPosition === 'left') {
-				Spotlight.focus('navbar');
-			} else {
-				handleFeaturedPrev();
-			}
-		} else if (e.keyCode === KEYS.RIGHT) {
-			e.preventDefault();
-			e.stopPropagation();
-			handleFeaturedNext();
-		} else if (e.keyCode === KEYS.UP) {
-			e.preventDefault();
-			e.stopPropagation();
-			if (settings.navbarPosition !== 'left') {
-				Spotlight.focus('navbar-home');
-			}
-		} else if (e.keyCode === KEYS.DOWN) {
-			e.preventDefault();
-			e.stopPropagation();
-			setFeaturedFocused(false);
-			setBrowseMode('rows');
+	const handleNavigateDownFromFeatured = useCallback(() => {
+		dispatch({type: 'SET_BROWSE_MODE', mode: 'rows'});
+		setTimeout(() => {
+			const contentRows = document.querySelector('[data-element="content-rows"]');
+			if (contentRows) contentRows.scrollTop = 0;
+			Spotlight.focus('row-0');
 			setTimeout(() => {
-				const contentRows = document.querySelector('[data-element="content-rows"]');
-				if (contentRows) contentRows.scrollTop = 0;
-				Spotlight.focus('row-0');
-				setTimeout(() => {
-					const firstRow = document.querySelector('[data-row-index="0"]');
-					if (firstRow) {
-						firstRow.scrollIntoView({block: 'start', behavior: 'auto'});
-					}
-				}, 50);
-			}, TRANSITION_DELAY_MS);
-		}
-	}, [handleFeaturedPrev, handleFeaturedNext, settings.navbarPosition]);
+				const firstRow = document.querySelector('[data-row-index="0"]');
+				if (firstRow) {
+					firstRow.scrollIntoView({block: 'start', behavior: 'auto'});
+				}
+			}, 50);
+		}, TRANSITION_DELAY_MS);
+	}, []);
+
+	const handleFeaturedFocusCallback = useCallback(() => {
+		dispatch({type: 'SET_BROWSE_MODE', mode: 'featured'});
+		detailSectionRef.current?.clearFocusedItem();
+	}, []);
 
 	const handleRowFocus = useCallback((rowIndex) => {
 		if (browseMode !== 'rows') {
-			setBrowseMode('rows');
+			dispatch({type: 'SET_BROWSE_MODE', mode: 'rows'});
 		}
-		setFeaturedFocused(false);
 		if (typeof rowIndex === 'number') {
 			lastFocusedRowRef.current = rowIndex;
 		}
@@ -916,180 +762,6 @@ const Browse = ({
 	const handleFocusItem = useCallback((item) => {
 		detailSectionRef.current?.handleFocusItem(item);
 	}, []);
-
-	const handleFeaturedClick = useCallback(() => {
-		const item = featuredItems[currentFeaturedIndex];
-		if (item) handleSelectItem(item);
-	}, [featuredItems, currentFeaturedIndex, handleSelectItem]);
-
-	const handleFeaturedFocus = useCallback(() => {
-		setFeaturedFocused(true);
-		detailSectionRef.current?.clearFocusedItem();
-		setBrowseMode('featured');
-	}, []);
-
-	const handleFeaturedBlur = useCallback(() => {
-		setFeaturedFocused(false);
-	}, []);
-
-	const handleCarouselPrevClick = useCallback((e) => {
-		e.stopPropagation();
-		handleFeaturedPrev();
-	}, [handleFeaturedPrev]);
-
-	const handleCarouselNextClick = useCallback((e) => {
-		e.stopPropagation();
-		handleFeaturedNext();
-	}, [handleFeaturedNext]);
-
-	const stopTrailer = useCallback(() => {
-		if (trailerRevealTimerRef.current) {
-			clearTimeout(trailerRevealTimerRef.current);
-			trailerRevealTimerRef.current = null;
-		}
-		if (trailerSkipIntervalRef.current) {
-			clearInterval(trailerSkipIntervalRef.current);
-			trailerSkipIntervalRef.current = null;
-		}
-		setTrailerActive(false);
-		const video = trailerVideoRef.current;
-		if (video) {
-			try { video.pause(); } catch (e) { /* ignore */ }
-			cleanupVideoElement(video);
-			video.classList.remove(css.trailerVisible);
-			video.classList.remove(css.trailerVideo);
-			video.onplaying = null;
-			video.onended = null;
-			video.onerror = null;
-		}
-		trailerStateRef.current = 'idle';
-		trailerVideoIdRef.current = null;
-		sponsorSegmentsRef.current = [];
-	}, []);
-
-	const startTrailerPreview = useCallback(async (videoId) => {
-		trailerStateRef.current = 'resolving';
-		trailerVideoIdRef.current = videoId;
-
-		let segments = [];
-		let streamUrl = null;
-		try {
-			const results = await Promise.all([
-				fetchSponsorSegments(videoId).catch(() => []),
-				fetchVideoStreamUrl(videoId, false)
-			]);
-			segments = results[0];
-			streamUrl = results[1];
-		} catch (e) { /* ignore */ }
-
-		if (trailerStateRef.current !== 'resolving' || trailerVideoIdRef.current !== videoId) return;
-		if (!streamUrl) {
-			trailerStateRef.current = 'unavailable';
-			return;
-		}
-		sponsorSegmentsRef.current = segments;
-
-		const startTime = getTrailerStartTime(segments);
-		const container = trailerContainerRef.current;
-		if (!container) return;
-
-		const isMuted = settings.featuredTrailerMuted;
-
-		let video = trailerVideoRef.current;
-		if (!video) {
-			video = getSharedVideoElement();
-			trailerVideoRef.current = video;
-		}
-		video.className = css.trailerVideo;
-		video.playsInline = true;
-		video.controls = false;
-
-		video.muted = isMuted;
-		video.volume = isMuted ? 0 : 1;
-		video.autoplay = true;
-		video.classList.remove(css.trailerVisible);
-
-		if (!container.contains(video)) {
-			container.appendChild(video);
-		}
-
-		if (trailerSkipIntervalRef.current) {
-			clearInterval(trailerSkipIntervalRef.current);
-			trailerSkipIntervalRef.current = null;
-		}
-
-		if (segments.length > 0) {
-			trailerSkipIntervalRef.current = setInterval(() => {
-				if (!video || video.paused) return;
-				const t = video.currentTime;
-				for (let i = 0; i < segments.length; i++) {
-					if (t >= segments[i].start && t < segments[i].end - 0.5) {
-						video.currentTime = segments[i].end;
-						break;
-					}
-				}
-			}, 500);
-		}
-
-		video.onplaying = () => {
-			if (trailerStateRef.current === 'resolving' && trailerVideoIdRef.current === videoId) {
-				trailerStateRef.current = 'playing';
-				trailerRevealTimerRef.current = setTimeout(() => {
-					if (trailerStateRef.current === 'playing' && trailerVideoIdRef.current === videoId) {
-						video.classList.add(css.trailerVisible);
-						setTrailerActive(true);
-					}
-				}, TRAILER_REVEAL_MS);
-			}
-		};
-
-		video.onended = () => {
-			stopTrailer();
-		};
-
-		video.onerror = () => {
-			trailerStateRef.current = 'unavailable';
-			video.classList.remove(css.trailerVisible);
-		};
-
-		video.src = streamUrl;
-		if (startTime > 0) video.currentTime = startTime;
-		const playPromise = video.play();
-		if (playPromise) playPromise.catch(() => {});
-	}, [stopTrailer, settings.featuredTrailerMuted]);
-
-	const currentFeatured = featuredItems[currentFeaturedIndex];
-
-	useEffect(() => {
-		// Trailers disabled — isolating decoder exhaustion issue
-		stopTrailer();
-		return;
-		/* eslint-disable no-unreachable */
-		if (!settings.featuredTrailerPreview || browseMode !== 'featured' || !currentFeatured) {
-			stopTrailer();
-			return;
-		}
-		stopTrailer();
-		const videoId = extractYouTubeId(currentFeatured);
-		if (videoId) {
-			const timer = setTimeout(() => {
-				startTrailerPreview(videoId);
-			}, 5000);
-			return () => clearTimeout(timer);
-		}
-	}, [currentFeaturedIndex, currentFeatured, browseMode, settings.featuredTrailerPreview, startTrailerPreview, stopTrailer]);
-
-	useEffect(() => {
-		const handleVisibility = () => {
-			if (document.hidden) stopTrailer();
-		};
-		document.addEventListener('visibilitychange', handleVisibility);
-		return () => document.removeEventListener('visibilitychange', handleVisibility);
-	}, [stopTrailer]);
-
-	useEffect(() => {
-		return () => stopTrailer();
-	}, [stopTrailer]);
 
 	if (isLoading) {
 		return (
@@ -1105,138 +777,25 @@ const Browse = ({
 	return (
 		<div className={css.page}>
 			<div className={`${css.mainContent} ${settings.navbarPosition === 'left' ? css.sidebarOffset : ''}`} ref={mainContentRef}>
-				<div className={css.globalBackdrop}>
-					{prevBackdropUrl && (
-						<img
-							className={css.globalBackdropImage}
-							src={prevBackdropUrl}
-							alt=""
-							style={{
-								WebkitFilter: settings.backdropBlurHome > 0
-									? `blur(${settings.backdropBlurHome}px)`
-									: 'none',
-								filter: settings.backdropBlurHome > 0
-									? `blur(${settings.backdropBlurHome}px)`
-									: 'none',
-								opacity: prevBackdropOpacity,
-								transition: 'opacity 0.45s ease'
-							}}
-						/>
-					)}
+				<BackdropLayer
+					targetUrl={targetBackdropUrl}
+					blurAmount={settings.backdropBlurHome}
+				/>
 
-					{backdropUrl && (
-						<img
-							className={css.globalBackdropImage}
-							src={backdropUrl}
-							alt=""
-							style={{
-								WebkitFilter: settings.backdropBlurHome > 0
-									? `blur(${settings.backdropBlurHome}px)`
-									: 'none',
-								filter: settings.backdropBlurHome > 0
-									? `blur(${settings.backdropBlurHome}px)`
-									: 'none',
-								opacity: backdropOpacity,
-								transition: 'opacity 0.45s ease'
-							}}
-						/>
-					)}
-					<div className={css.globalBackdropOverlay} />
-				</div>
-
-				{currentFeatured && settings.showFeaturedBar !== false && browseMode === 'featured' && (
-					<div
-						className={css.featuredBanner}
-					>
-						<SpottableDiv
-							className={`${css.featuredInner} ${trailerActive ? css.trailerActive : ''}`}
-							spotlightId="featured-banner"
-							onClick={handleFeaturedClick}
-							onKeyDown={handleFeaturedKeyDown}
-							onFocus={handleFeaturedFocus}
-							onBlur={handleFeaturedBlur}
-						>
-							<div className={css.featuredBackdrop}>
-								<img
-									src={getImageUrl(getItemServerUrl(currentFeatured), getBackdropId(currentFeatured), 'Backdrop', {maxWidth: 1920, quality: 85})}
-									alt=""
-								/>
-							</div>
-
-							<div className={css.trailerContainer} ref={trailerContainerRef} />
-
-							{featuredItems.length > 1 && (
-								<>
-									{settings.navbarPosition !== 'left' && (
-										<SpottableButton
-											className={`${css.carouselNav} ${css.carouselNavLeft}`}
-											onClick={handleCarouselPrevClick}
-											style={uiButtonStyle}
-										>
-											<svg viewBox="0 0 24 24" width="32" height="32">
-												<path fill="currentColor" d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
-											</svg>
-										</SpottableButton>
-									)}
-									<SpottableButton
-										className={`${css.carouselNav} ${css.carouselNavRight}`}
-										onClick={handleCarouselNextClick}
-										style={uiButtonStyle}
-									>
-										<svg viewBox="0 0 24 24" width="32" height="32">
-											<path fill="currentColor" d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z" />
-										</svg>
-									</SpottableButton>
-								</>
-							)}
-
-							<div className={css.featuredLogoContainer}>
-									{currentFeatured.LogoUrl && (
-										<img
-											src={currentFeatured.LogoUrl}
-											alt={`${currentFeatured.Name} logo`}
-										/>
-									)}
-								</div>
-
-							<div className={css.featuredContent}>
-								<div className={css.featuredInfoBox} style={uiPanelStyle}>
-									<div className={css.featuredMeta}>
-										{currentFeatured.ProductionYear && (
-											<span className={css.metaItem}>{currentFeatured.ProductionYear}</span>
-										)}
-										{currentFeatured.OfficialRating && (
-											<span className={css.metaItem}>{currentFeatured.OfficialRating}</span>
-										)}
-										{currentFeatured.RunTimeTicks && (
-											<span className={css.metaItem}>{formatDuration(currentFeatured.RunTimeTicks)}</span>
-										)}
-										{currentFeatured.Genres?.slice(0, FEATURED_GENRES_LIMIT).map((g, i) => (
-											<span key={i} className={css.metaItem}>{g}</span>
-										))}
-									</div>
-									{settings.useMoonfinPlugin && settings.mdblistEnabled !== false && (
-										<RatingsRow item={currentFeatured} serverUrl={getItemServerUrl(currentFeatured)} compact />
-									)}
-									<p className={css.featuredOverview}>
-										{currentFeatured.Overview || 'No description available.'}
-									</p>
-								</div>
-
-							</div>
-
-							{featuredItems.length > 1 && (
-								<div className={css.featuredIndicators}>
-									{featuredItems.map((_, idx) => (
-										<div
-											key={idx}
-											className={`${css.indicatorDot} ${idx === currentFeaturedIndex ? css.active : ''}`}
-										/>
-									))}
-								</div>
-							)}
-						</SpottableDiv>
-					</div>
+				{featuredItems.length > 0 && settings.showFeaturedBar !== false && (
+					<FeaturedBanner
+						isVisible={browseMode === 'featured'}
+						featuredItems={featuredItems}
+						serverUrl={serverUrl}
+						settings={settings}
+						getItemServerUrl={getItemServerUrl}
+						onSelectItem={handleSelectItem}
+						onNavigateDown={handleNavigateDownFromFeatured}
+						onFeaturedFocus={handleFeaturedFocusCallback}
+						uiPanelStyle={uiPanelStyle}
+						uiButtonStyle={uiButtonStyle}
+						onCurrentItemChange={setCurrentFeaturedItem}
+					/>
 				)}
 
 				<DetailSection
