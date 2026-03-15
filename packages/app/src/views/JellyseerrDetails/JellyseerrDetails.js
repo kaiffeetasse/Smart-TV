@@ -358,7 +358,6 @@ const SeasonSelectionPopup = memo(({open, title, seasons, seasonStatusMap, onCon
 				<p className={css.seasonPopupSubtitle}>{title}</p>
 
 				<SeasonSelectionContainer className={css.seasonsList} spotlightId="season-selection">
-					{/* Select All option */}
 					{allSelectableSeasons.length > 1 && (
 						<SpottableDiv
 							className={`${css.seasonCheckItem} ${allSelected ? css.seasonCheckItemSelected : ''}`}
@@ -371,7 +370,6 @@ const SeasonSelectionPopup = memo(({open, title, seasons, seasonStatusMap, onCon
 						</SpottableDiv>
 					)}
 
-					{/* Individual seasons */}
 					{availableSeasons.map(season => {
 						const seasonStatus = seasonStatusMap?.get(season.seasonNumber);
 						const isUnavailable = isSeasonUnavailable(season.seasonNumber);
@@ -405,20 +403,20 @@ const SeasonSelectionPopup = memo(({open, title, seasons, seasonStatusMap, onCon
 							</SpottableDiv>
 						);
 					})}
-				</SeasonSelectionContainer>
 
-				<div className={css.seasonPopupButtons}>
-					<Button
-						className={`${css.seasonConfirmButton} ${!canConfirm ? css.seasonButtonDisabled : ''}`}
-						onClick={handleConfirm}
-						disabled={!canConfirm}
-					>
-						Request {selectedSeasons.size} Season{selectedSeasons.size !== 1 ? 's' : ''}
-					</Button>
-					<Button className={css.seasonCancelButton} onClick={onClose}>
-						Cancel
-					</Button>
-				</div>
+					<div className={css.seasonPopupButtons}>
+						<Button
+							className={`${css.seasonConfirmButton} ${!canConfirm ? css.seasonButtonDisabled : ''}`}
+							onClick={handleConfirm}
+							disabled={!canConfirm}
+						>
+							Request {selectedSeasons.size} Season{selectedSeasons.size !== 1 ? 's' : ''}
+						</Button>
+						<Button className={css.seasonCancelButton} onClick={onClose}>
+							Cancel
+						</Button>
+					</div>
+				</SeasonSelectionContainer>
 			</div>
 		</Popup>
 	);
@@ -520,84 +518,83 @@ const AdvancedOptionsPopup = memo(({open, title, servers, is4k, onConfirm, onClo
 				<h2 className={css.advancedPopupTitle}>Request Options</h2>
 				<p className={css.advancedPopupSubtitle}>{title} ({is4k ? '4K' : 'HD'})</p>
 
-				{loadingDetails ? (
-					<div className={css.advancedLoading}>Loading server options...</div>
-				) : (
-					<AdvancedOptionsContainer className={css.advancedOptionsList} spotlightId="advanced-options">
-						{/* Server Selection (if multiple) */}
-						{availableServers.length > 1 && (
-							<div className={css.advancedOptionGroup}>
-								<label className={css.advancedOptionLabel}>Server</label>
-								<div className={css.advancedOptionButtons}>
-									{availableServers.map(server => (
-										<SpottableDiv
-											key={server.id}
-											className={`${css.advancedOptionBtn} ${selectedServerId === server.id ? css.advancedOptionBtnSelected : ''}`}
-											onClick={handleServerChange}
-											data-serverid={server.id}
-										>
-											{server.name}
-										</SpottableDiv>
-									))}
+				<AdvancedOptionsContainer className={css.advancedOptionsList} spotlightId="advanced-options">
+					{loadingDetails ? (
+						<div className={css.advancedLoading}>Loading server options...</div>
+					) : (
+						<>
+							{availableServers.length > 1 && (
+								<div className={css.advancedOptionGroup}>
+									<label className={css.advancedOptionLabel}>Server</label>
+									<div className={css.advancedOptionButtons}>
+										{availableServers.map(server => (
+											<SpottableDiv
+												key={server.id}
+												className={`${css.advancedOptionBtn} ${selectedServerId === server.id ? css.advancedOptionBtnSelected : ''}`}
+												onClick={handleServerChange}
+												data-serverid={server.id}
+											>
+												{server.name}
+											</SpottableDiv>
+										))}
+									</div>
 								</div>
-							</div>
-						)}
+							)}
 
-						{/* Quality Profile Selection */}
-						{serverDetails?.profiles?.length > 0 && (
-							<div className={css.advancedOptionGroup}>
-								<label className={css.advancedOptionLabel}>Quality Profile</label>
-								<div className={css.advancedOptionButtons}>
-									{serverDetails.profiles.map(profile => (
-										<SpottableDiv
-											key={profile.id}
-											className={`${css.advancedOptionBtn} ${selectedProfileId === profile.id ? css.advancedOptionBtnSelected : ''}`}
-											onClick={handleProfileChange}
-											data-profileid={profile.id}
-										>
-											{profile.name}
-										</SpottableDiv>
-									))}
+							{serverDetails?.profiles?.length > 0 && (
+								<div className={css.advancedOptionGroup}>
+									<label className={css.advancedOptionLabel}>Quality Profile</label>
+									<div className={css.advancedOptionButtons}>
+										{serverDetails.profiles.map(profile => (
+											<SpottableDiv
+												key={profile.id}
+												className={`${css.advancedOptionBtn} ${selectedProfileId === profile.id ? css.advancedOptionBtnSelected : ''}`}
+												onClick={handleProfileChange}
+												data-profileid={profile.id}
+											>
+												{profile.name}
+											</SpottableDiv>
+										))}
+									</div>
 								</div>
-							</div>
-						)}
+							)}
 
-						{/* Root Folder Selection */}
-						{serverDetails?.rootFolders?.length > 0 && (
-							<div className={css.advancedOptionGroup}>
-								<label className={css.advancedOptionLabel}>Download Location</label>
-								<div className={css.advancedOptionButtons}>
-									{serverDetails.rootFolders.map(folder => (
-										<SpottableDiv
-											key={folder.id}
-											className={`${css.advancedOptionBtn} ${selectedRootFolder === folder.path ? css.advancedOptionBtnSelected : ''}`}
-											onClick={handleFolderChange}
-											data-folderpath={folder.path}
-										>
-											{folder.path}
-										</SpottableDiv>
-									))}
+							{serverDetails?.rootFolders?.length > 0 && (
+								<div className={css.advancedOptionGroup}>
+									<label className={css.advancedOptionLabel}>Download Location</label>
+									<div className={css.advancedOptionButtons}>
+										{serverDetails.rootFolders.map(folder => (
+											<SpottableDiv
+												key={folder.id}
+												className={`${css.advancedOptionBtn} ${selectedRootFolder === folder.path ? css.advancedOptionBtnSelected : ''}`}
+												onClick={handleFolderChange}
+												data-folderpath={folder.path}
+											>
+												{folder.path}
+											</SpottableDiv>
+										))}
+									</div>
 								</div>
-							</div>
-						)}
-					</AdvancedOptionsContainer>
-				)}
+							)}
+						</>
+					)}
 
-				<div className={css.advancedPopupButtons}>
-					<Button
-						className={`${css.advancedConfirmButton} ${!canConfirm ? css.advancedButtonDisabled : ''}`}
-						onClick={handleConfirm}
-						disabled={!canConfirm || loadingDetails}
-					>
-						Continue with Options
-					</Button>
-					<Button className={css.advancedSkipButton} onClick={handleSkip}>
-						Use Defaults
-					</Button>
-					<Button className={css.advancedCancelButton} onClick={onClose}>
-						Cancel
-					</Button>
-				</div>
+					<div className={css.advancedPopupButtons}>
+						<Button
+							className={`${css.advancedConfirmButton} ${!canConfirm ? css.advancedButtonDisabled : ''}`}
+							onClick={handleConfirm}
+							disabled={!canConfirm || loadingDetails}
+						>
+							Continue with Options
+						</Button>
+						<Button className={css.advancedSkipButton} onClick={handleSkip}>
+							Use Defaults
+						</Button>
+						<Button className={css.advancedCancelButton} onClick={onClose}>
+							Cancel
+						</Button>
+					</div>
+				</AdvancedOptionsContainer>
 			</div>
 		</Popup>
 	);
