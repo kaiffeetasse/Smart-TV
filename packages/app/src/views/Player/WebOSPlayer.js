@@ -103,6 +103,35 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 	};
 
+	// Match a Jellyfin audio stream to a browser audioTracks entry by language,
+	// falling back to array-position if language matching is ambiguous or unavailable.
+	const matchAudioTrack = (nativeTracks, jellyfinStreams, targetIndex) => {
+		const selectedStream = jellyfinStreams.find(s => s.index === targetIndex);
+		if (selectedStream) {
+			const lang = (selectedStream.language || '').toLowerCase();
+			if (lang && lang !== 'unknown' && lang !== 'und') {
+				const langMatches = [];
+				for (let i = 0; i < nativeTracks.length; i++) {
+					const trackLang = (nativeTracks[i].language || '').toLowerCase();
+					if (trackLang === lang || trackLang.startsWith(lang) || lang.startsWith(trackLang)) {
+						langMatches.push(i);
+					}
+				}
+				if (langMatches.length === 1) return langMatches[0];
+				if (langMatches.length > 1) {
+					const sameLanguageStreams = jellyfinStreams.filter(s => (s.language || '').toLowerCase() === lang);
+					const posInSameLanguage = sameLanguageStreams.findIndex(s => s.index === targetIndex);
+					if (posInSameLanguage >= 0 && posInSameLanguage < langMatches.length) {
+						return langMatches[posInSameLanguage];
+					}
+				}
+			}
+		}
+		const trackPosition = jellyfinStreams.findIndex(s => s.index === targetIndex);
+		if (trackPosition >= 0 && trackPosition < nativeTracks.length) return trackPosition;
+		return -1;
+	};
+
 	const {topButtons, bottomButtons} = usePlayerButtons({
 		isPaused, audioStreams, subtitleStreams, chapters,
 		nextEpisode, isAudioMode, hasNextTrack, hasPrevTrack
@@ -770,14 +799,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				// Apply initial audio track selection via audioTracks API
 				const pending = pendingAudioRef.current;
 				if (pending && video.audioTracks?.length > 1) {
-					const trackPosition = pending.audioStreams
-						.map(s => s.index)
-						.indexOf(pending.streamIndex);
-					if (trackPosition >= 0 && trackPosition < video.audioTracks.length) {
+					const matchIndex = matchAudioTrack(video.audioTracks, pending.audioStreams, pending.streamIndex);
+					if (matchIndex >= 0) {
 						for (let i = 0; i < video.audioTracks.length; i++) {
-							video.audioTracks[i].enabled = (i === trackPosition);
+							video.audioTracks[i].enabled = (i === matchIndex);
 						}
-						console.log('[Player] Applied initial audio track via audioTracks API, index:', pending.streamIndex);
+						console.log('[Player] Applied initial audio track via audioTracks API, index:', pending.streamIndex, 'matchIndex:', matchIndex);
 					}
 					pendingAudioRef.current = null;
 				}
@@ -1267,22 +1294,20 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		transcodeRetryCountRef.current = 0;
 
 		try {
-			// DirectPlay: try native audioTracks API for instant switch without reload
 			if (playMethod !== playback.PlayMethod.Transcode && videoRef.current?.audioTracks?.length > 1) {
 				const audioTrackList = videoRef.current.audioTracks;
-				const audioStreamIndices = audioStreams.map(s => s.index);
-				const trackPosition = audioStreamIndices.indexOf(index);
+				const matchIndex = matchAudioTrack(audioTrackList, audioStreams, index);
 
-				if (trackPosition >= 0 && trackPosition < audioTrackList.length) {
+				if (matchIndex >= 0) {
 					for (let i = 0; i < audioTrackList.length; i++) {
-						audioTrackList[i].enabled = (i === trackPosition);
+						audioTrackList[i].enabled = (i === matchIndex);
 					}
-					console.log('[Player] Switched audio natively via audioTracks API');
+					playback.updateCurrentSession({audioStreamIndex: index});
+					console.log('[Player] Switched audio natively via audioTracks API, matchIndex:', matchIndex);
 					return;
 				}
 			}
 
-			// Fallback: re-request playback info with current position preserved
 			const currentPositionTicks = videoRef.current
 				? Math.floor(videoRef.current.currentTime * 10000000)
 				: positionRef.current || 0;
@@ -1290,15 +1315,31 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			const result = await playback.changeAudioStream(index, currentPositionTicks);
 			if (result) {
 				positionRef.current = currentPositionTicks;
+
+				// Preserve playback position when reloading for audio switch
+				if (result.playMethod !== playback.PlayMethod.Transcode && currentPositionTicks > 0) {
+					pendingResumeTicksRef.current = currentPositionTicks;
+				}
+				if (result.playMethod === playback.PlayMethod.Transcode) {
+					transcodeOffsetTicksRef.current = currentPositionTicks;
+					transcodeOffsetDetectedRef.current = false;
+				}
+
 				let newUrl = result.url;
-				// Cache-buster for DirectPlay so the video element reloads
 				if (result.playMethod === playback.PlayMethod.DirectPlay) {
 					const separator = newUrl.includes('?') ? '&' : '?';
 					newUrl = `${newUrl}${separator}_audioSwitch=${Date.now()}`;
+					// Try native audio track switch after reload as safety net
+					pendingAudioRef.current = {
+						streamIndex: index,
+						audioStreams: result.audioStreams || audioStreams
+					};
 				}
 				setMediaUrl(newUrl);
 				if (result.playMethod) setPlayMethod(result.playMethod);
 				setMimeType(result.mimeType || 'video/mp4');
+				if (result.audioStreams) setAudioStreams(result.audioStreams);
+				if (result.subtitleStreams) setSubtitleStreams(result.subtitleStreams);
 			}
 		} catch (err) {
 			console.error('[Player] Failed to change audio:', err);
@@ -1309,6 +1350,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const index = parseInt(e.currentTarget.dataset.index, 10);
 		console.log('[Player] handleSelectSubtitle called with index:', index);
 		if (isNaN(index)) return;
+		playback.updateCurrentSession({subtitleStreamIndex: index});
 		if (index === -1) {
 			console.log('[Player] Turning subtitles OFF');
 			setSelectedSubtitleIndex(-1);

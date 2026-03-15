@@ -325,8 +325,8 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, bac
 			const subtitleStream = selectedSubtitleIndex >= 0 ? subtitleStreamsList[selectedSubtitleIndex] : null;
 			playbackOptions = {
 				mediaSourceId: playMediaSource.Id,
-				audioStreamIndex: selectedAudio?.Index ?? selectedAudioIndex,
-				subtitleStreamIndex: subtitleStream?.Index ?? selectedSubtitleIndex
+				audioStreamIndex: selectedAudio?.Index,
+				subtitleStreamIndex: subtitleStream?.Index ?? -1
 			};
 		}
 
@@ -375,8 +375,8 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, bac
 			const subtitleStream = selectedSubtitleIndex >= 0 ? subtitleStreamsList[selectedSubtitleIndex] : null;
 			playbackOptions = {
 				mediaSourceId: resumeMediaSource.Id,
-				audioStreamIndex: selectedAudio?.Index ?? selectedAudioIndex,
-				subtitleStreamIndex: subtitleStream?.Index ?? selectedSubtitleIndex
+				audioStreamIndex: selectedAudio?.Index,
+				subtitleStreamIndex: subtitleStream?.Index ?? -1
 			};
 		}
 

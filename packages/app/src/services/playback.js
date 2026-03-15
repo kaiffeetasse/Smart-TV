@@ -703,10 +703,14 @@ export const getNextEpisode = async (item) => {
 export const changeAudioStream = async (streamIndex, currentPositionTicks) => {
 	if (!currentSession) return null;
 
+	// Always disable DirectPlay for audio switching. DirectPlay URLs serve the static
+	// container file and always play the default audio track regardless of AudioStreamIndex.
+	// DirectStream (server-side remux) is quality-identical but honors track selection.
 	const newInfo = await getPlaybackInfo(currentSession.itemId, {
 		...currentSession,
 		audioStreamIndex: streamIndex,
-		startPositionTicks: currentPositionTicks ?? currentSession.startPositionTicks
+		startPositionTicks: currentPositionTicks ?? currentSession.startPositionTicks,
+		enableDirectPlay: false
 	});
 
 	return newInfo;
@@ -923,6 +927,17 @@ export const startHealthMonitoring = (onUnhealthy) => {
 
 export const getCurrentSession = () => currentSession;
 
+/** Update currentSession track indices without a full reload (native track switch). */
+export const updateCurrentSession = (updates) => {
+	if (!currentSession) return;
+	if (updates.audioStreamIndex !== undefined) {
+		currentSession.audioStreamIndex = updates.audioStreamIndex;
+	}
+	if (updates.subtitleStreamIndex !== undefined) {
+		currentSession.subtitleStreamIndex = updates.subtitleStreamIndex;
+	}
+};
+
 export const isDirectPlay = () => currentSession?.playMethod === PlayMethod.DirectPlay;
 
 export const getPlaybackUrl = async (itemId, startPositionTicks = 0, options = {}) => {
@@ -945,6 +960,7 @@ export default {
 	getNextEpisode,
 	changeAudioStream,
 	changeSubtitleStream,
+	updateCurrentSession,
 	reportStart,
 	reportProgress,
 	reportStop,
