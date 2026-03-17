@@ -110,7 +110,7 @@ try {
 const errorBody = JSON.parse(result.body);
 if (errorBody.FileContents) {
 try {
-const decoded = JSON.parse(atob(errorBody.FileContents));
+const decoded = JSON.parse(decodeURIComponent(escape(atob(errorBody.FileContents))));
 errorMessage = decoded.message || decoded.error || errorMessage;
 } catch (e2) { void e2; }
 } else {
@@ -130,7 +130,7 @@ const parsed = JSON.parse(result.body);
 
 if (parsed.FileContents !== undefined) {
 try {
-const decoded = atob(parsed.FileContents);
+const decoded = decodeURIComponent(escape(atob(parsed.FileContents)));
 if (!decoded) return null;
 const unwrapped = JSON.parse(decoded);
 console.log('[Jellyseerr/Moonfin] Unwrapped FileContents for:', endpoint,
