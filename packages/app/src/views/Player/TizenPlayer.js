@@ -128,17 +128,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			healthMonitorRef.current.recordProgress();
 		}
 
-		// Update custom subtitle text - match current position to subtitle events
 		if (subtitleTrackEvents && subtitleTrackEvents.length > 0) {
 			const lookupTicks = ticks - (subtitleOffset * 10000000);
-			let foundSubtitle = null;
+			const matchingTexts = [];
 			for (const event of subtitleTrackEvents) {
 				if (lookupTicks >= event.StartPositionTicks && lookupTicks <= event.EndPositionTicks) {
-					foundSubtitle = event.Text;
-					break;
+					matchingTexts.push(event.Text);
 				}
 			}
-			setCurrentSubtitleText(foundSubtitle);
+			setCurrentSubtitleText(matchingTexts.length > 0 ? matchingTexts.join('\n') : null);
 		}
 
 		checkSegments(ticks); // eslint-disable-line no-use-before-define
