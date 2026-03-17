@@ -80,7 +80,8 @@ const defaultSettings = {
 	themeMusicOnHomeRows: false,
 	showRatingLabels: true,
 	screensaverAgeFilter: false,
-	screensaverMaxRating: 13
+	screensaverMaxRating: 13,
+	uiScale: 1.0
 };
 
 export {DEFAULT_HOME_ROWS};

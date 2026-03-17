@@ -12,6 +12,7 @@ import Spotlight from '@enact/spotlight';
 import Spottable from '@enact/spotlight/Spottable';
 import jellyseerrApi from '../../services/jellyseerrApi';
 import {useJellyseerr} from '../../context/JellyseerrContext';
+import {useSettings} from '../../context/SettingsContext';
 import css from './JellyseerrRequests.module.less';
 
 const SpottableRow = Spottable('div');
@@ -97,6 +98,7 @@ const RequestItem = memo(function RequestItem({request, index, onSelect, onCance
 
 const JellyseerrRequests = ({onSelectItem, onClose, ...rest}) => {
 	const {isAuthenticated} = useJellyseerr();
+	const {settings} = useSettings();
 	const [requests, setRequests] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
@@ -209,7 +211,7 @@ const JellyseerrRequests = ({onSelectItem, onClose, ...rest}) => {
 			<VirtualList
 				dataSize={filteredRequests.length}
 				itemRenderer={renderRequest}
-				itemSize={ri.scale(120)}
+				itemSize={ri.scale(120 * (settings.uiScale || 1.0))}
 				direction="vertical"
 				spotlightId="requests-list"
 			/>

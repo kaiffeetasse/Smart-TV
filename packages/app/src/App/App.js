@@ -138,6 +138,33 @@ const AppContent = (props) => {
 		document.documentElement.style.setProperty('--accent-color', settings.focusColor || '#00a4dc');
 	}, [settings.focusColor]);
 
+	useEffect(() => {
+		const scale = settings.uiScale || 1.0;
+		if (scale === 1.0) return;
+
+		const html = document.documentElement;
+		let scaled = 0;
+		let unscaled = 0;
+
+		const applyScale = () => {
+			const current = parseFloat(html.style.fontSize) || 24;
+			if (current === scaled) return;
+			unscaled = current;
+			scaled = Math.round(current * scale * 10) / 10;
+			html.style.fontSize = scaled + 'px';
+		};
+
+		applyScale();
+
+		const observer = new window.MutationObserver(applyScale);
+		observer.observe(html, {attributes: true, attributeFilter: ['style']});
+
+		return () => {
+			observer.disconnect();
+			if (unscaled) html.style.fontSize = unscaled + 'px';
+		};
+	}, [settings.uiScale]);
+
 	const {updateInfo, formattedNotes, dismiss: dismissUpdate} = useVersionCheck(isAuthenticated ? 3000 : null);
 
 	const screensaverActive = isAuthenticated &&

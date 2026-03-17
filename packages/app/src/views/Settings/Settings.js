@@ -230,6 +230,18 @@ const IMAGE_TYPE_OPTIONS = [
 	{ value: 'thumb', label: 'Thumb' }
 ];
 
+const UI_SCALE_OPTIONS = [
+	{ value: 0.85, label: 'Compact' },
+	{ value: 0.9, label: 'Small' },
+	{ value: 0.95, label: 'Slightly Small' },
+	{ value: 1.0, label: 'Default' },
+	{ value: 1.05, label: 'Slightly Large' },
+	{ value: 1.1, label: 'Large' },
+	{ value: 1.15, label: 'Extra Large' },
+	{ value: 1.2, label: 'Huge' },
+	{ value: 1.3, label: 'Maximum' }
+];
+
 const FOCUS_COLOR_OPTIONS = [
 	{ value: '#00a4dc', label: 'Blue' },
 	{ value: '#ffffff', label: 'White' },
@@ -773,6 +785,7 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 
 	const renderDisplayUI = () => (
 		<>
+			{renderOptionItem('uiScale', 'UI Scale', UI_SCALE_OPTIONS, 'Default')}
 			{renderOptionItem('uiOpacity', 'UI Opacity', UI_OPACITY_OPTIONS, '85%')}
 			{renderOptionItem('userOpacity', 'User Avatar Opacity', USER_OPACITY_OPTIONS, '85%')}
 			{renderOptionItem('uiColor', 'UI Color', UI_COLOR_OPTIONS, 'Gray')}
